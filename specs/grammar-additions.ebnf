@@ -1,0 +1,132 @@
+(* SPL 3.0 Grammar Additions — EBNF delta over SPL 2.0 *)
+(* Base grammar: spl2-specification-v2.md              *)
+
+(* ============================================================ *)
+(* 1. IMPORT directive                                           *)
+(* ============================================================ *)
+(* Load workflow definitions from an external .spl file.        *)
+(* Resolved at parse time relative to the current file.         *)
+
+import_stmt = 'IMPORT' string_literal ';'? ;
+
+(* ============================================================ *)
+(* 2. CALL workflow (extended from SPL 2.0)                     *)
+(* ============================================================ *)
+(* SPL 2.0: CALL tool_fn(@arg) INTO @var  (Python @spl_tool)    *)
+(* SPL 3.0: CALL workflow_name(@arg) INTO @var (WORKFLOW def)   *)
+(*                                                               *)
+(* The runtime resolves the callee name in priority order:       *)
+(*   1. Registered @spl_tool (Python function)                  *)
+(*   2. Local WorkflowRegistry                                   *)
+(*   3. Hub workflow registry (via POST /tasks type=workflow)    *)
+(*   4. Hub-to-Hub peering (peer_hub routing)                   *)
+
+call_stmt = 'CALL' identifier '(' arg_list? ')' 'INTO' variable ';'? ;
+
+arg_list = arg (',' arg)* ;
+arg      = variable | literal | expression ;
+
+(* ============================================================ *)
+(* 3. CALL PARALLEL                                              *)
+(* ============================================================ *)
+(* Dispatch multiple sub-workflows concurrently.                 *)
+(* Hub routes each to an available node (existing mechanism).    *)
+
+call_parallel_stmt =
+    'CALL' 'PARALLEL'
+        parallel_call (',' parallel_call)*
+    'END' ;
+
+parallel_call = identifier '(' arg_list? ')' 'INTO' variable ;
+
+(* ============================================================ *)
+(* 4. COMMIT (clarification for composition context)             *)
+(* ============================================================ *)
+(* Unchanged syntax. In composition context:                     *)
+(*   - 'complete' (default)  → OUTPUT returned to caller         *)
+(*   - any other status      → WorkflowCompositionError raised   *)
+(*                             in calling scope (EXCEPTION chan)  *)
+
+commit_stmt = 'COMMIT' expression? ('WITH' commit_options)? ';'? ;
+commit_options = commit_option (',' commit_option)* ;
+commit_option  = identifier '=' literal ;
+
+(* ============================================================ *)
+(* 5. New keywords                                               *)
+(* ============================================================ *)
+
+new_keywords = 'IMPORT' | 'PARALLEL' ;
+
+(* ============================================================ *)
+(* 6. Hub protocol extension (protocol level, not SPL syntax)   *)
+(* ============================================================ *)
+(*                                                               *)
+(* Runtime unit of execution: WorkflowInvocationEvent           *)
+(*                                                               *)
+(* Key design principle:                                         *)
+(*   Definition  = static, shared, named (.spl WORKFLOW block)  *)
+(*   Invocation  = dynamic, isolated, identified by event_id    *)
+(*                                                               *)
+(* Two concurrent callers of 'review_code' produce two          *)
+(* independent events with completely isolated variable scopes.  *)
+(* Name collision (design-time) is irrelevant at runtime        *)
+(* because identity is event_id (UUID), not workflow name.      *)
+(*                                                               *)
+(* OS analogy:                                                   *)
+(*   workflow definition      ≈  program binary (shared/static) *)
+(*   WorkflowInvocationEvent  ≈  process (isolated, has PID)    *)
+(*   event_id                 ≈  PID                            *)
+(*   parent_event_id          ≈  parent PID (fork lineage)      *)
+(*   Hub event log            ≈  /proc (kernel process table)   *)
+(*                                                               *)
+(* POST /tasks payload (SPL 3.0 extension):                     *)
+(*                                                               *)
+(*   {                                                           *)
+(*     -- SPL 2.0 fields (unchanged) --                         *)
+(*     "model":         "string",                               *)
+(*     "prompt":        "string",                               *)
+(*     "system_role":   "string | null",                        *)
+(*     "temperature":   "float | null",                         *)
+(*     "max_tokens":    "integer | null",                       *)
+(*     "node_requirements": { "min_tier": int, ... },           *)
+(*     "session_key_id": "string | null",                       *)
+(*                                                               *)
+(*     -- SPL 3.0 additions (ignored by SPL 2.0 nodes) --       *)
+(*     "type":            "workflow",    <- was implicit         *)
+(*     "workflow":        "review_code", <- registry lookup key  *)
+(*     "namespace":       "python",      <- IMPORT AS alias     *)
+(*     "args":            {"code": "..."}, <- INPUT bindings    *)
+(*     "event_id":        "uuid",        <- idempotency key     *)
+(*     "parent_event_id": "uuid | null", <- call tree linkage   *)
+(*     "requester_id":    "string",      <- attribution/billing  *)
+(*     "peer_hub":        "https://...", <- Hub-to-Hub routing   *)
+(*   }                                                           *)
+(*                                                               *)
+(* GET /tasks/{event_id} response (SPL 3.0 additions):          *)
+(*                                                               *)
+(*   {                                                           *)
+(*     -- SPL 2.0 fields --                                     *)
+(*     "task_id":    "uuid",                                     *)
+(*     "status":     "pending | running | complete | failed",   *)
+(*     "result":     "string",                                   *)
+(*     "tokens_in":  integer,                                   *)
+(*     "tokens_out": integer,                                    *)
+(*     "latency_ms": integer,                                    *)
+(*     "node_id":    "string",                                   *)
+(*                                                               *)
+(*     -- SPL 3.0 additions --                                  *)
+(*     "event_id":      "uuid",          <- same as task_id     *)
+(*     "commit_status": "string",        <- COMMIT status value  *)
+(*     "workflow":      "review_code",   <- which workflow ran   *)
+(*     "requester_id":  "string"         <- for audit trail      *)
+(*   }                                                           *)
+(*                                                               *)
+(* Event log queries (new Hub endpoints):                        *)
+(*                                                               *)
+(*   GET /events?workflow=review_code&status=running            *)
+(*   GET /events?parent=abc-001           <- full call tree     *)
+(*   GET /events?requester=user-42&since=1h  <- audit trail     *)
+(*                                                               *)
+(* Backward compatible: SPL 2.0 nodes ignore unknown fields.    *)
+(* Re-submitting a known event_id returns cached output          *)
+(* (idempotency — same as retry semantics in SPL 2.0).          *)

@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "spl3"
+version = "3.0.0-alpha"
+description = "SPL 3.0 - Momagrid as Compute OS: Native Workflow Composition for Agentic Pipelines"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.11"
+dependencies = [
+    "spl-llm>=2.0.0",   # SPL 2.0 runtime — lexer, parser, executor, adapters
+    "click>=8.0",
+    "httpx>=0.27",
+    "pyyaml>=6.0",
+    # dd-* ecosystem: clean from day one, no bespoke wrappers
+    "dd-llm>=0.1.0",    # multi-provider LLM client (replaces bespoke adapter layer)
+    "dd-vectordb>=0.1.0", # vector store for Code-RAG (FAISS / Chroma / Qdrant)
+    "dd-embed>=0.1.0",  # embedding layer for Code-RAG (sentence-transformers / ollama)
+    "dd-db>=0.1.0",     # database abstraction (SQLite / DuckDB / Postgres)
+    "dd-cache>=0.1.0",  # caching layer (disk / memory / Redis)
+    "dd-extract>=0.1.0", # file extraction (PDF / CSV / DOCX for --dataset)
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+]
+
+[project.scripts]
+spl3 = "spl3.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["spl3*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
