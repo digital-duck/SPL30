@@ -7,6 +7,6 @@ WORKFLOW review_code
 DO
     SELECT @code AS source
     GENERATE reviewer(@code) INTO @feedback
-    LOGGING INFO 'review_code: feedback generated'
+    LOGGING 'review_code: feedback generated'
     COMMIT @feedback
 END

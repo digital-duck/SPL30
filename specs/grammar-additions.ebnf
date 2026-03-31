@@ -55,7 +55,143 @@ commit_option  = identifier '=' literal ;
 (* 5. New keywords                                               *)
 (* ============================================================ *)
 
-new_keywords = 'IMPORT' | 'PARALLEL' ;
+new_keywords = 'IMPORT' | 'PARALLEL'
+             | 'NONE'   | 'NULL'       (* null literal — aliases  *)
+             | 'IMAGE'  | 'AUDIO' | 'VIDEO'  (* multimodal types  *)
+             ;
+
+(* ============================================================ *)
+(* 7. Extended Type System (SPL 3.0)                            *)
+(* ============================================================ *)
+(*                                                               *)
+(* SPL 2.0 types (unchanged, all remain valid):                 *)
+(*   TEXT | NUMBER | BOOL | LIST | MAP | STORAGE                 *)
+(*                                                               *)
+(* SPL 3.0 additions:                                           *)
+(*                                                               *)
+(*   INT        integer; precision split from NUMBER             *)
+(*   FLOAT      float; precision split from NUMBER               *)
+(*   NONE/NULL  first-class null literal (SQL + Python style)    *)
+(*   SET        unordered unique collection; {a, b, c} literal   *)
+(*   IMAGE      multimodal image input/output                    *)
+(*   AUDIO      multimodal audio input/output                    *)
+(*   VIDEO      multimodal video input/output                    *)
+(*   DATACLASS  typed named-field struct (v3.1, planned)         *)
+(*                                                               *)
+(* Disambiguation rule for { } literals:                        *)
+(*   {}          → empty MAP  (consistent with Python)           *)
+(*   {k: v, ...} → MAP        (colon after first element)        *)
+(*   {a, b, ...} → SET        (comma after first element)        *)
+
+type_annotation =
+      'TEXT'    | 'STR'
+    | 'INT'     | 'INTEGER'
+    | 'FLOAT'
+    | 'NUMBER'                    (* v2.0 compat alias *)
+    | 'BOOL'    | 'BOOLEAN'
+    | 'LIST'
+    | 'SET'
+    | 'MAP'     | 'DICT'
+    | 'NONE'    | 'NULL'
+    | 'IMAGE'   | 'AUDIO' | 'VIDEO'
+    | 'STORAGE' '(' identifier ',' string_literal ')'
+    | 'DATACLASS'                 (* v3.1 — paired with CREATE TYPE *)
+    ;
+
+(* ============================================================ *)
+(* 8. NONE literal                                              *)
+(* ============================================================ *)
+(*                                                               *)
+(* NONE is a first-class expression, assignable to any variable.*)
+(*                                                               *)
+(*   @result := NONE                                             *)
+(*   EVALUATE @result WHEN = NONE THEN ...  END                  *)
+(*   INPUT: @threshold FLOAT DEFAULT NONE                        *)
+(*                                                               *)
+(* NONE serializes to the empty string '' in the string-based   *)
+(* variable store.  is_none_value() in spl3/types.py            *)
+(* centralizes this convention.                                  *)
+
+none_literal = 'NONE' | 'NULL' ;
+
+(* ============================================================ *)
+(* 9. SET literal                                               *)
+(* ============================================================ *)
+(*                                                               *)
+(* Syntax mirrors Python set literals.  The parser disambiguates*)
+(* { } by peeking at the token after the first element:         *)
+(*                                                               *)
+(*   {expr, expr, ...}    → SetLiteral                          *)
+(*   {expr: expr, ...}    → MapLiteral  (colon present)         *)
+(*   {}                   → MapLiteral  (empty — MAP by default) *)
+(*                                                               *)
+(* At runtime, SetLiteral serializes as a JSON array with        *)
+(* duplicates removed and elements sorted for stable output.     *)
+(*                                                               *)
+(*   @seen := {'apple', 'banana', 'apple'}   -- stores ["apple","banana"] *)
+
+set_literal  = '{' set_elements '}' ;
+set_elements = expression (',' expression)+ ;  (* ≥2 disambiguates vs MAP *)
+
+(* ============================================================ *)
+(* 10. Multimodal types — IMAGE, AUDIO, VIDEO                   *)
+(* ============================================================ *)
+(*                                                               *)
+(* Multimodal params hold a file path (string) or base64 blob.  *)
+(* The LLM adapter (Liquid AI LFM or any multimodal provider)   *)
+(* is responsible for encoding the value before inference.       *)
+(*                                                               *)
+(*   WORKFLOW describe_image                                     *)
+(*       INPUT:  @photo IMAGE, @question TEXT                    *)
+(*       OUTPUT: @answer TEXT                                    *)
+(*   DO                                                          *)
+(*       GENERATE vision_describe(@photo, @question) INTO @answer*)
+(*       COMMIT @answer                                          *)
+(*   END                                                         *)
+(*                                                               *)
+(* The executor passes IMAGE/AUDIO/VIDEO params to the adapter   *)
+(* as-is (file path string or data URI).  Multimodal encoding    *)
+(* is an adapter responsibility, not a language responsibility.  *)
+
+multimodal_type = 'IMAGE' | 'AUDIO' | 'VIDEO' ;
+
+(* ============================================================ *)
+(* 11. DATACLASS — v3.1 planned                                 *)
+(* ============================================================ *)
+(*                                                               *)
+(* Python developers expect named, typed record types.          *)
+(* DATACLASS bridges SPL's MAP type with Python dataclasses.     *)
+(*                                                               *)
+(* Definition:                                                   *)
+(*   CREATE TYPE Review AS (                                     *)
+(*       score   FLOAT,                                          *)
+(*       verdict TEXT,                                           *)
+(*       passed  BOOL                                            *)
+(*   )                                                           *)
+(*                                                               *)
+(* Usage:                                                        *)
+(*   WORKFLOW evaluate_code                                       *)
+(*       INPUT:  @code TEXT                                      *)
+(*       OUTPUT: @review Review                                  *)
+(*   DO                                                          *)
+(*       GENERATE reviewer(@code)                                *)
+(*           WITH FORMAT JSON SCHEMA Review INTO @review         *)
+(*       COMMIT @review                                          *)
+(*   END                                                         *)
+(*                                                               *)
+(* At runtime DATACLASS instances serialize as JSON objects      *)
+(* (same wire format as MAP); the type annotation drives schema  *)
+(* injection into the GENERATE FORMAT JSON SCHEMA clause.        *)
+(*                                                               *)
+(* Note: requires CREATE TYPE statement — not in SPL 3.0.       *)
+(*       Planned for SPL 3.1 once CALL composition is stable.   *)
+
+create_type_stmt =
+    'CREATE' 'TYPE' identifier 'AS' '('
+        typed_field (',' typed_field)*
+    ')' ';'? ;
+
+typed_field = identifier type_annotation ;
 
 (* ============================================================ *)
 (* 6. Hub protocol extension (protocol level, not SPL syntax)   *)

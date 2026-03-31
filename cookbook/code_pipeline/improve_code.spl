@@ -7,6 +7,6 @@ WORKFLOW improve_code
 DO
     SELECT @code AS original, @feedback AS review, @test_result AS tests
     GENERATE refactor(@code, @feedback, @test_result) INTO @improved
-    LOGGING INFO 'improve_code: revision complete'
+    LOGGING 'improve_code: revision complete'
     COMMIT @improved
 END

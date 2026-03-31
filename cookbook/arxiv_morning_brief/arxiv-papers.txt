@@ -1,0 +1,8 @@
+# reranker
+https://arxiv.org/abs/2602.15860
+
+# benchmark embedding models
+https://arxiv.org/abs/2601.09732
+
+# SPL
+# https://arxiv.org/abs/2602.21257

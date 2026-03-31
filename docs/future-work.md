@@ -365,6 +365,113 @@ No new infrastructure is needed; only a small schema extension:
 
 ---
 
+## SPL 3.0 Extended Type System
+
+*Added: 2026-03-31. Extends SPL 2.0 to feel natural for Python, SQL, and Linux developers.*
+
+SPL is framed as a synthesis language — it should feel natural to developers from all three backgrounds:
+
+| Background | What they expect |
+|---|---|
+| SQL | Typed columns, NULL, structured records |
+| Python | `int`, `float`, `None`, `set`, dataclasses |
+| Linux/bash | File paths as first-class values for piping multimodal data |
+
+### SPL 2.0 → SPL 3.0 Type Matrix
+
+| SPL 3.0 Type | Python | SQL | New in 3.0 | Notes |
+|---|---|---|---|---|
+| `TEXT` | `str` | `VARCHAR` | no | unchanged |
+| `NUMBER` | `int\|float` | `NUMERIC` | no | kept as v2.0 alias |
+| `INT` | `int` | `INTEGER` | **yes** | precision split from NUMBER |
+| `FLOAT` | `float` | `FLOAT` | **yes** | precision split from NUMBER |
+| `BOOL` | `bool` | `BOOLEAN` | no | unchanged; TRUE/FALSE literals |
+| `LIST` | `list` | `ARRAY` | no | unchanged; `[a, b, c]` literal |
+| `MAP` | `dict` | `JSON` | no | unchanged; `{'k': v}` literal |
+| `SET` | `set` | — | **yes** | `{a, b, c}` literal (no colons) |
+| `NONE` / `NULL` | `None` | `NULL` | **yes** | first-class null literal |
+| `IMAGE` | `bytes\|str` | — | **yes** | multimodal; Liquid AI LFM |
+| `AUDIO` | `bytes\|str` | — | **yes** | multimodal; Liquid AI LFM |
+| `VIDEO` | `bytes\|str` | — | **yes** | multimodal; Liquid AI LFM |
+| `STORAGE` | `Connection` | — | no | unchanged; compound type |
+| `DATACLASS` | `dataclass` | `RECORD` | **v3.1** | `CREATE TYPE ... AS (...)` |
+
+### Design Decisions
+
+**INT and FLOAT split NUMBER** — `NUMBER` is kept as a backward-compatible alias that accepts both int and float. New SPL 3.0 workflows should prefer `INT` for counters/budgets and `FLOAT` for scores/ratios/temperatures. The executor coerces `INT`-typed params via `int(value)` and `FLOAT`-typed params via `float(value)`.
+
+**NONE serializes to `''`** — SPL's variable store is string-based. `NONE` serializes to the empty string `''` at runtime. `is_none_value()` in `spl3/types.py` centralizes this check. SQL developers can write `EVALUATE @x WHEN = NONE THEN ...`; Python developers can check `@x = ''` after assignment.
+
+**SET `{a, b}` vs MAP `{k: v}` disambiguation** — same rule as Python: if the first element after `{` is followed by `:` it's a MAP; if by `,` or `}` it's a SET. Empty `{}` → MAP (consistent with Python). At runtime, SET serializes as a sorted, deduplicated JSON array.
+
+**Multimodal types for Liquid AI LFM** — `IMAGE`, `AUDIO`, `VIDEO` are type annotations that tell the adapter the param carries media, not text. The executor passes the value (file path or data URI) to the LLM adapter as-is; encoding (base64, content-type negotiation) is an adapter responsibility. This keeps the language clean: `GENERATE describe(@photo) INTO @answer` works without new syntax.
+
+**DATACLASS is SPL 3.1** — requires a `CREATE TYPE` DDL statement and schema-driven `FORMAT JSON SCHEMA` injection in GENERATE. Architecturally clean, but depends on a stable CALL composition runtime first. Defer to v3.1.
+
+### Syntax Examples
+
+```sql
+-- NONE literal
+@threshold := NONE
+EVALUATE @score WHEN = NONE THEN
+    LOGGING 'score not set' LEVEL WARN
+END
+
+-- INT / FLOAT type annotations
+WORKFLOW summarize_budget
+    INPUT:  @text TEXT, @max_tokens INT DEFAULT 512
+    OUTPUT: @summary TEXT, @compression_ratio FLOAT
+DO
+    GENERATE summarizer(@text, @max_tokens) INTO @summary
+    @compression_ratio := len(@summary) / len(@text)
+    COMMIT @summary
+END
+
+-- SET literal  ({...} without colons)
+@seen_topics := {'introduction', 'methods', 'results'}
+
+-- Multimodal INPUT for Liquid AI LFM adapter
+WORKFLOW describe_image
+    INPUT:  @photo IMAGE, @question TEXT DEFAULT 'What is in this image?'
+    OUTPUT: @answer TEXT
+DO
+    GENERATE vision_describe(@photo, @question) INTO @answer
+    COMMIT @answer
+END
+
+-- DATACLASS (v3.1 design preview)
+CREATE TYPE CodeReview AS (
+    score   FLOAT,
+    verdict TEXT,
+    passed  BOOL
+)
+
+WORKFLOW review_code
+    INPUT:  @code TEXT
+    OUTPUT: @review CodeReview
+DO
+    GENERATE reviewer(@code) WITH FORMAT JSON SCHEMA CodeReview INTO @review
+    COMMIT @review
+END
+```
+
+### Implementation Scope for SPL 3.0
+
+| Change | File | Status |
+|---|---|---|
+| `SPL3Type` enum + coerce helpers | `spl3/types.py` | done |
+| Grammar spec additions | `specs/grammar-additions.ebnf` | done |
+| Token keywords: NONE, NULL, IMAGE, AUDIO, VIDEO | lexer extension | todo |
+| `SetLiteral` AST node | AST extension | todo |
+| `{a, b}` SET vs `{k: v}` MAP disambiguation | parser extension | todo |
+| `NONE` literal → `Literal(value=None, literal_type='none')` | parser extension | todo |
+| INT/FLOAT coercion in workflow INPUT processing | executor extension | todo |
+| Multimodal param pass-through to LLM adapter | executor + adapters | todo |
+| Liquid AI LFM adapter (`dd-llm` backend) | `dd-llm` package | todo |
+| `DATACLASS` / `CREATE TYPE` | parser + executor | v3.1 |
+
+---
+
 ## SPL 3.0 Release Scope
 
 *Analysis: which features from the SPL 2.0 roadmap belong in v3.0.*

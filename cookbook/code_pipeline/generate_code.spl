@@ -7,6 +7,6 @@ WORKFLOW generate_code
 DO
     SELECT @spec AS task
     GENERATE coder(@spec) INTO @code
-    LOGGING INFO 'generate_code: produced ' || @code
+    LOGGING 'generate_code: produced ' || @code
     COMMIT @code
 END

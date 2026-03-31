@@ -22,12 +22,13 @@ WORKFLOW code_pipeline
     INPUT:  @spec TEXT
     OUTPUT: @final TEXT
 DO
-    -- Step 1: Generate initial code
-    CALL generate_code(@spec) INTO @code
-    EXCEPTION WHEN RefusalToAnswer THEN
-        LOGGING WARN 'Generator refused the spec'
-        COMMIT 'Refused.' WITH status = 'refused'
-    END
+    -- Step 1: Generate initial code (DO block catches RefusalToAnswer)
+    DO
+        CALL generate_code(@spec) INTO @code
+        EXCEPTION WHEN RefusalToAnswer THEN
+            LOGGING 'Generator refused the spec' LEVEL WARN
+            COMMIT 'Refused.' WITH status = 'refused'
+        END
 
     -- Step 2: Review and test in parallel (CALL PARALLEL — Hub dispatches
     --         both sub-workflows to different nodes concurrently)
@@ -40,9 +41,9 @@ DO
     WHILE @quality < 0.85 DO
         CALL improve_code(@code, @feedback, '') INTO @code
         GENERATE quality_judge(@code) INTO @quality
-        LOGGING INFO 'quality=' || @quality
+        LOGGING 'quality=' || @quality
     END
 
-    LOGGING INFO 'code_pipeline: done, quality=' || @quality
+    LOGGING 'code_pipeline: done, quality=' || @quality
     COMMIT @code
 END

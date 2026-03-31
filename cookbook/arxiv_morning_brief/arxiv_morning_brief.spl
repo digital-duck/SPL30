@@ -1,0 +1,48 @@
+-- arxiv_morning_brief.spl
+-- Orchestrator: iterate over arXiv PDF URLs, summarize each paper, write brief.
+--
+-- Run (any of these url formats work):
+--   spl3 run arxiv_morning_brief.spl --param urls='["https://arxiv.org/pdf/2501.00001"]'
+--   spl3 run arxiv_morning_brief.spl --param urls='https://arxiv.org/pdf/2501.00001'
+--   spl3 run arxiv_morning_brief.spl --param urls='url1 url2 url3'
+--   spl3 run arxiv_morning_brief.spl --param urls='url1, url2, url3'
+--   spl3 run arxiv_morning_brief.spl --param urls='papers.txt'   (one URL per line)
+--
+-- Momagrid:
+--   spl3 run arxiv_morning_brief.spl \
+--       --adapter momagrid --hub http://momagrid.org:9000 \
+--       --param urls='papers.txt'
+
+IMPORT 'summarize_paper.spl'
+
+WORKFLOW arxiv_morning_brief
+    INPUT:  @urls         TEXT,
+            @date         TEXT DEFAULT '',
+            @brief_tokens INT  DEFAULT 1024
+    OUTPUT: @brief TEXT
+DO
+    CALL parse_urls(@urls) INTO @urls          -- normalise: JSON / delimited / file path
+    CALL build_brief_date_header(@date) INTO @header
+    @paper_summaries := []
+    @i := 0
+    CALL list_count(@urls) INTO @n
+
+    WHILE @i < @n DO
+        CALL get_item(@urls, @i) INTO @url
+        DO
+            CALL summarize_paper(@url) INTO @summary
+            CALL list_append(@paper_summaries, @summary) INTO @paper_summaries
+        EXCEPTION
+            WHEN RefusalToAnswer THEN
+                LOGGING 'Skipping ' || @url || ': refused' LEVEL WARN
+            WHEN ToolError THEN
+                LOGGING 'Skipping ' || @url || ': tool error' LEVEL WARN
+        END
+        @i := @i + 1
+    END
+
+    GENERATE brief_writer(@header, @paper_summaries, @brief_tokens)
+        WITH OUTPUT BUDGET @brief_tokens TOKENS
+        INTO @brief
+    COMMIT @brief
+END
