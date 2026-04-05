@@ -34,6 +34,17 @@ Benefits:
 
 ## The Pipeline
 
+SPL-by-Spec spans **two layers of translation**:
+
+```
+multi-turn chat → spec.md → .spl (logical view) → splc → physical deployment → tests
+(requirements)   (design)  (implementation)      (compile)  (run anywhere)
+```
+
+The `.spl` script is the **logical view**: it declares *what* the agentic workflow does — agents, data flow, error handling, orchestration — but says nothing about hardware, runtime, or model quantization. `splc` is the **structural layer** that translates the logical view into a hardware-specific artifact for the target device (Intel Mini-PC, Apple Silicon, Ubuntu Snap, cloud cluster).
+
+This separation means spec authors, `.spl` generators, and deployment engineers work independently. The spec and `.spl` are deployment-agnostic; `splc` handles the rest.
+
 ### 1. Constitution
 
 Project-level principles inherited by every workflow in the cookbook. Lives in `cookbook/CONSTITUTION.md`. Constrains all spec and code generation.
@@ -98,15 +109,34 @@ Because the spec contains workflow signatures, tool contracts, and error-handlin
 
 The spec's Section 7 (Testing Strategy) drives parallel generation of `tests/test_tools.py` and `tests/test_workflow.py`. Same spec → two outputs (workflow + tests), ensuring they're aligned by construction.
 
-### 6. Iterate
+Tests validate the **logical view** — they run against the `.spl` directly via `spl3 test`, independent of deployment target. A workflow that passes logical tests is then handed to `splc` for physical compilation; target-specific integration tests are a separate concern.
 
-Human reviews generated `.spl` and tests. Corrections feed back into `spec.md` (not directly into code), keeping the spec as the source of truth.
+### 6. splc Compilation (Physical Deployment)
+
+With a validated `.spl` script, `splc` translates the logical view to a physical artifact for the target device. The spec may include a deployment manifest in an optional **Section 11**:
+
+```markdown
+## 11. Deployment Manifest
+- target: intel-mini-pc
+- model: liquid-ai/lfm-2-2.6b
+- quantize: int4
+- runtime: openvino
+- fallback: aws-bedrock
+```
+
+If no manifest is present, `splc` uses auto-detection at compile time. The `.spl` script is never modified by this step — only the compiled output changes.
+
+### 7. Iterate
+
+Human reviews generated `.spl` and tests. Corrections feed back into `spec.md` (not directly into code), keeping the spec as the source of truth. Deployment changes (different hardware target, model swap) only touch the deployment manifest — the spec and `.spl` remain stable.
 
 ---
 
 ## Text2SPL Integration
 
-SPL-by-Spec is the recommended backend for any Text2SPL feature. The execution looks like:
+SPL-by-Spec is the recommended backend for any Text2SPL feature. Text2SPL operates entirely in the **logical layer**: it takes human intent and produces a valid `.spl` script (the logical view). It does not concern itself with hardware targets or model selection — those are `splc`'s domain.
+
+### text2SPL → Logical View
 
 ```sql
 WORKFLOW text2spl
@@ -126,6 +156,40 @@ END
 ```
 
 The `COMMIT ... WITH status='review'` pause maps directly to the SPL execution model and makes the human gate a first-class workflow step, not an out-of-band process.
+
+### text2SPL → splc: The Full Pipeline
+
+When a deployment target is known at generation time, text2SPL v2 accepts an optional `--target-profile` and injects `splc` annotations as comments at the top of the generated `.spl`. These annotations are inert to the SPL runtime but consumed by `splc` at compilation:
+
+```sql
+-- @splc-target: go
+-- @splc-model: liquid-ai/lfm-2-2.6b
+-- @splc-quantize: int4
+WORKFLOW arxiv_morning_brief
+    INPUT: @date TEXT DEFAULT 'today'
+    OUTPUT: @brief TEXT
+DO
+    ...
+END
+```
+
+The full three-layer pipeline in one view:
+
+```
+Human Intent
+    │
+    ▼  text2SPL (Semantic Layer)
+    │  phase 1: spec elicitation → spec.md
+    │  phase 2: spl generation → .spl (logical view)
+    │
+    ▼  splc Compiler (Structural Layer)
+    │  hardware detection → optimized binary / snap / service
+    │
+    ▼  Momagrid Execution
+       Intel Mini-PC / Apple M4 / Ubuntu Snap / Cloud — same .spl, different silicon
+```
+
+The `.spl` file is the stable contract between the two layers. Changing it requires re-running the spec → code pipeline. Changing the deployment target only requires re-running `splc`.
 
 ---
 
@@ -163,11 +227,15 @@ This use case demonstrates the core value proposition: the spec survived a full 
 
 ## Status
 
-| Stage | Tooling | Notes |
-|-------|---------|-------|
-| Constitution | manual `CONSTITUTION.md` | to be created |
-| Multi-turn chat | any LLM (Claude recommended) | no tooling yet |
-| spec.md generation | LLM-assisted, human-reviewed | arXiv brief: done manually |
-| .spl generation | `spl_generator` prompt (TBD) | not yet implemented |
-| Test generation | `test_generator` prompt (TBD) | not yet implemented |
-| Text2SPL workflow | `text2spl.spl` (TBD) | design above, not yet coded |
+| Stage | Layer | Tooling | Notes |
+|-------|-------|---------|-------|
+| Constitution | logical | manual `CONSTITUTION.md` | to be created |
+| Multi-turn chat | logical | any LLM (Claude recommended) | no tooling yet |
+| spec.md generation | logical | LLM-assisted, human-reviewed | arXiv brief: done manually |
+| .spl generation | logical | `spl_generator` prompt (TBD) | not yet implemented |
+| Test generation | logical | `test_generator` prompt (TBD) | not yet implemented |
+| Text2SPL workflow | logical | `text2spl.spl` (TBD) | design above, not yet coded |
+| splc `--target go` | physical | `splc` compiler (TBD) | v3.1 milestone; Intel Mini-PC primary target |
+| splc `--target snap` | physical | `splc` compiler (TBD) | v3.1 milestone; Ubuntu 26.04 Inference Snap |
+| splc `--target swift` | physical | `splc` compiler (TBD) | v3.2 milestone; Apple M4/M5 Metal backend |
+| Deployment manifest in spec | physical | Section 11 in spec.md | design above, not yet standardized |

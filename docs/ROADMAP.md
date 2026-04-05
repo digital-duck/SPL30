@@ -2,6 +2,10 @@
 
 *Captured: 2026-03-30. These ideas are beyond the current SPL 2.0 arXiv paper.*
 
+> **Implementation progress:** see [FEATURES.md](FEATURES.md) for what is currently
+> implemented and tested. ROADMAP.md tracks *design intent*; FEATURES.md tracks
+> *build status* (test results, known failures, and what remains TODO).
+
 ---
 
 ## Momagrid as a Compute OS — The Big Picture
@@ -469,6 +473,138 @@ END
 | Multimodal param pass-through to LLM adapter | executor + adapters | todo |
 | Liquid AI LFM adapter (`dd-llm` backend) | `dd-llm` package | todo |
 | `DATACLASS` / `CREATE TYPE` | parser + executor | v3.1 |
+
+---
+
+---
+
+## splc Compiler & DODA: Design Once, Deploy Anywhere
+
+*Added: 2026-04-05. The "Java Moment" for AI — hardware-agnostic SPL execution.*
+
+### The Logical / Physical Separation
+
+SPL 3.0 introduces a fundamental two-layer architecture. The `.spl` file is the **logical view** — it describes *what* the agentic workflow does, agnostic of hardware, runtime, or model. The `splc` compiler produces the **physical view** — optimized, hardware-specific artifacts that run the workflow on actual silicon.
+
+```
+[Human Intent]
+      │
+      ▼  text2SPL (Semantic Layer)
+[.spl Script]  ← Logical View: declarative, hardware-agnostic
+      │
+      ▼  splc Compiler (Structural Layer)
+ ┌────┴────────────────────────────────────┐
+ │  Target Detection (hardware-aware)      │
+ └─────┬──────┬──────┬───────┬────────────┘
+       ▼      ▼      ▼       ▼
+  OpenVINO  Metal  Snap   vLLM/Triton
+  (Intel)  (Apple) (Ubuntu) (Cloud)
+       └──────┴──────┴───────┘
+              Momagrid Execution
+```
+
+This separation is the "Java Moment" for AI: the same `.spl` file runs on a 10-node heterogeneous grid, a single laptop, or routes to a cloud cluster — the runtime resolves the target transparently.
+
+### DODA: Design Once, Deploy Anywhere
+
+The **DODA** philosophy has one invariant: the logic in a `.spl` file never changes based on deployment target. Physical adaptation is entirely `splc`'s responsibility.
+
+| Device Class | Runtime Profile | Recommended Model | splc Target |
+| :--- | :--- | :--- | :--- |
+| Mac Mini M4/M5 | Unified Memory / Metal | Gemma 4 31B / LFM-2 24B | `--target swift` or `--target ts` |
+| Intel Mini-PC | CPU+iGPU / OpenVINO | Gemma 4 E4B / LFM-2 2.6B | `--target go` + OpenVINO |
+| Ubuntu 26.04 | Inference Snap (immutable) | LFM-2 2.6B | `--target snap` |
+| Edge / IoT | ARM / Android AICore | Gemma 4 E2B | `--target edge` |
+| Cloud Cluster | vLLM / Triton | Any | `--target vllm` |
+
+### Dynamic Fallback (The Resolute Path)
+
+`splc` embeds a runtime fallback chain into the compiled artifact:
+
+1. **Local High-Density:** utilize all CPU cores (Intel Mini-PC, iGPU via OpenVINO).
+2. **Local Sparse:** shift to LFM-2 2.6B if available memory is <4GB.
+3. **Cloud Failover:** fall back to AWS Bedrock / OpenAI if local nodes are offline.
+
+The `.spl` author never writes this logic — it is injected by `splc` based on the deployment manifest.
+
+### splc Implementation Roadmap
+
+| Phase | Milestone | Deliverable |
+|-------|-----------|-------------|
+| v3.0 | Logical IR | Define `.spl` as the stable intermediate representation |
+| v3.1 | `splc --target go` | Go binary for high-concurrency Intel Mini-PC (banking / batch) |
+| v3.1 | `splc --target snap` | Ubuntu 26.04 inference snap: weights + logic as one artifact |
+| v3.2 | `splc --target swift` | Apple Metal backend for M4/M5 unified memory |
+| v3.2 | Hardware-aware optimizer | Auto-selects model quantization (INT4/INT8) per target profile |
+| v3.3 | `splc --target edge` | ARM / Android AICore for IoT deployment |
+| v3.x | Momagrid orchestration | Multi-node DODA: distribute sub-workflows across device tiers |
+
+### Snap Inference (Ubuntu 26.04 Integration)
+
+For Ubuntu 26.04 "Resolute Raccoon", `splc --target snap` outputs a `.snap` package that encapsulates:
+- The compiled SPL logic (Go/C++ binary).
+- Quantized model weights for the target device class.
+- The `inference-snap` interface to bind directly to host GPU/NPU drivers.
+
+One-click deployment on Ubuntu: `sudo snap install my-workflow.snap && spl3 run my-workflow`.
+
+---
+
+## text2SPL Enhancement: Intent → SPL Logical View
+
+*Added: 2026-04-05. Closing the full pipeline from human intent to deployed agentic workflow.*
+
+### The Full Three-Layer Pipeline
+
+text2SPL is the entry point to the DODA pipeline. Its role is precisely scoped: translate natural-language intent into a valid, auditable `.spl` script (the logical view). It knows nothing about deployment targets — that is `splc`'s domain.
+
+```
+[Human Intent]  →  text2SPL  →  [.spl Logical View]  →  splc  →  [Physical Deployment]
+(Semantic Layer)                                        (Structural Layer)
+```
+
+This clean boundary means text2SPL can be evaluated independently of deployment: a generated `.spl` is correct if it expresses the right agentic logic, regardless of where it will run.
+
+### text2SPL v2: Agentic Workflow Intent
+
+text2SPL v1 handled single-workflow generation from intent. v2 targets **agentic workflow composition**: multi-agent patterns with orchestrator + sub-workflow structure, CALL PARALLEL branches, WHILE refinement loops, and exception handling strategies.
+
+The enhancements:
+
+| Capability | v1 | v2 |
+|---|---|---|
+| Single WORKFLOW generation | yes | yes |
+| Multi-workflow orchestrator + sub-agents | no | **yes** |
+| CALL PARALLEL branch suggestion | no | **yes** |
+| WHILE refinement loop detection | no | **yes** |
+| EXCEPTION WHEN strategy elicitation | no | **yes** |
+| splc deployment target annotation | no | **yes** (`-- @target: go/snap/swift`) |
+| SPL-by-Spec integration (spec.md → .spl) | partial | **full** |
+
+### Generating the Deployment Annotation
+
+text2SPL v2 accepts an optional `--target-profile` hint from the user (e.g., `--target-profile intel-mini-pc`). When provided, it injects `splc` target annotations as comments at the top of the generated `.spl`:
+
+```sql
+-- @splc-target: go
+-- @splc-model: liquid-ai/lfm-2-2.6b
+-- @splc-quantize: int4
+WORKFLOW arxiv_morning_brief
+    INPUT: @date TEXT DEFAULT 'today'
+    ...
+```
+
+`splc` reads these annotations to seed its hardware-aware compilation without changing the workflow logic.
+
+### RAG + Agentic Pattern Library
+
+text2SPL v2 extends the cookbook RAG corpus with an **agentic pattern index**: named multi-agent patterns (code pipeline, research summarizer, debate loop, judge-retry) stored as `(intent description, orchestrator .spl + sub-workflow .spl)` pairs. At generation time, text2SPL retrieves the closest agentic pattern as a structural template, then fills in domain-specific workflow logic.
+
+```
+Intent → Pattern Retrieval (RAG) → Structural Template → Domain Fill → .spl Logical View
+```
+
+This means text2SPL v2 rarely generates orchestrators from scratch — it instantiates a validated pattern.
 
 ---
 
