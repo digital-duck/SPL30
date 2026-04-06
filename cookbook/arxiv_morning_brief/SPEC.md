@@ -275,6 +275,7 @@ Run against 2 real arXiv URLs. Assert output length > 200 chars. Gate on `ARXIV_
 |---------|-----|
 | `spl-llm>=2.0.0` | SPL20 base (lexer, parser, executor) |
 | `spl>=0.1.0` | SPL30 runtime, CALL PARALLEL, IMPORT |
+
 | `dd-extract` | Structural PDF chunking |
 | `dd-cache` | URL-keyed download cache |
 | `dd-llm` | LLM adapter (Liquid AI LFM or OpenAI fallback) |

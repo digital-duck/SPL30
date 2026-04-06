@@ -1,6 +1,6 @@
 # SPL 3.0 — Implemented Features
 
-*Last updated: 2026-04-05. Based on `pytest tests/ -v` in conda env `spl2`.*
+*Last updated: 2026-04-06. Based on `pytest tests/ -v` in conda env `spl2`.*
 *Test result: **85 passed, 10 failed** out of 95 total.*
 
 Status legend:
@@ -135,11 +135,17 @@ Status legend:
 | `self_refine.go` (`splc --target go` prototype) | `[DONE]` | stdlib only; calls Ollama REST API directly; compiles and runs end-to-end |
 | `go.mod` | `[DONE]` | module `spl30/self_refine`, Go 1.22, zero external deps |
 
+### Targets: Python / Liquid (`cookbook/*/targets/python/liquid/`)
+
+| Target | Status | Notes |
+|---|---|---|
+| `splc --target python/liquid` | `[TODO]` | Liquid AI LFM via Ollama; edge audio+image on ARM/laptop |
+
 ### Targets: planned
 
 | Target | Status | Notes |
 |---|---|---|
-| `splc --target snap` (Ubuntu 26.04 Inference Snap) | `[TODO]` | v3.1 milestone |
+| `splc --target snap` (Ubuntu 26.04 Inference Snap) | `[TODO]` | v3.1 milestone — waiting for Ubuntu 26.04 GA |
 | `splc --target swift` (Apple M4/M5 Metal) | `[TODO]` | v3.2 milestone |
 | `splc --target edge` (ARM / Android AICore) | `[TODO]` | v3.3 milestone |
 
@@ -152,6 +158,54 @@ Status legend:
 | `05_self_refine/self_refine.spl` | `[DONE]` | Draft → critique → refine loop; WHILE + EVALUATE |
 | `arxiv_morning_brief/` | `[DONE]` | Multi-workflow SPL3 recipe; `tools.py` + unit tests |
 | `code_pipeline/` | `[DONE]` | CALL composition demo: generate → review → improve |
+
+---
+
+## Adapters (`spl/adapters/`)
+
+### Adapter Registry
+
+| Feature | Status | Notes |
+|---|---|---|
+| `register_adapter()` / `get_adapter()` / `list_adapters()` | `[DONE]` | Shadows SPL20's adapters `__init__`; `__path__` extension makes SPL20 adapters transparently accessible |
+| dd-llm bridge (anthropic, openai, ollama, openrouter, claude_cli, google) | `[DONE]` | Registered when `dd-llm` is installed; bespoke fallbacks when not |
+| SPL20 always-available adapters (echo, deepseek, qwen, bedrock, vertex, azure_openai) | `[DONE]` | Loaded via SPL20 `__path__` extension |
+
+### SPL30 New Adapters
+
+| Adapter | File | Backend | Status | Notes |
+|---|---|---|---|---|
+| `LiquidAdapter` | `spl/adapters/liquid.py` | Ollama or OpenRouter | `[DONE]` | LFM2-8B/24B + LFM-2.5; default `lfm2-8b` via Ollama |
+| `SnapAdapter` | `spl/adapters/snap.py` | Ubuntu AI Snap (future) | `[TODO placeholder]` | Raises `NotImplementedError`; UBUNTU_AI_URL env var reserved; full implementation awaits Ubuntu 26.04 GA |
+
+### Multi-Modal Adapter Architecture
+
+| Feature | File | Status | Notes |
+|---|---|---|---|
+| `MultiModalMixin` + `generate_multimodal()` | `spl/adapters/base_multimodal.py` | `[DONE]` | Default falls back to `generate()` with text extraction; warns on dropped non-text parts |
+| `supports_multimodal` property | `spl/adapters/base_multimodal.py` | `[DONE]` | `True` only if adapter overrides `generate_multimodal` |
+| `ContentPart` union (TextPart, ImagePart, AudioPart, VideoPart) | `spl/adapters/base_multimodal.py` | `[DONE]` | TypedDicts matching OpenAI / Anthropic content-array format |
+| `MultiModalAdapter` base class | `spl/adapters/base_multimodal.py` | `[DONE]` | `MultiModalMixin + LLMAdapter`; subclass for native multi-modal adapters |
+| `generate_multimodal()` override in `LiquidAdapter` | `spl/adapters/liquid.py` | `[DONE]` | Image (base64+URL) + audio (input_audio format) + video (frames flattened to image_url). Audio via Ollama logs a warning — confirmed only on OpenRouter LFM-2.5 |
+| `spl/codecs/` data transform layer | `spl/codecs/` | `[DONE]` | `encode_image` (PIL/path/bytes/URL→ImagePart), `encode_audio` (WAV/MP3→AudioPart, pydub for conversion), `encode_video` (cv2 primary, Pillow GIF fallback→list[ImagePart]) |
+
+---
+
+## Multi-Modal Cookbook Recipes (`cookbook/`)
+
+New `multimodal` category. Recipes start at id 50 (after SPL20's last recipe id 49).
+Model availability as of 2026-04-06: Gemma 4 and LFM-2.5 both available via Ollama.
+
+| id | Recipe | Input types | Output types | Model(s) | Status | Notes |
+|---|---|---|---|---|---|---|
+| 50 | `image_caption` | `IMAGE` | `TEXT` | Gemma 4 via Ollama | `[DONE]` | 3 modes: caption / detailed / ocr; `run.py` + `.spl` |
+| 51 | `audio_summary` | `AUDIO` | `TEXT` | LFM-2.5 via OpenRouter | `[DONE]` | 3 modes: summary / transcribe / key_points; Ollama experimental |
+| 52 | `text_to_image` | `TEXT` | `IMAGE` | DALL-E 3 (OpenAI) + Gemma4 (prompt enhance) | `[DONE]` | Prompt enhancement optional; aspect/quality/style flags |
+| 53 | `text_to_speech` | `TEXT` | `AUDIO` | OpenAI TTS or system say/espeak | `[DONE]` | Script prep via Gemma4; gpt-4o-mini-tts instructions supported |
+| 54 | `image_restyle` | `IMAGE` + `TEXT` | `TEXT` + `IMAGE` | Gemma4 (vision) + DALL-E 3 | `[DONE]` | Vision → DALL-E prompt → new image; JSON intermediate |
+| 55 | `voice_dialogue` | `AUDIO` + `TEXT` | `TEXT` + `AUDIO` | LFM-2.5 (ASR) + Gemma4 (LLM) + OpenAI TTS | `[DONE]` | Full voice assistant pipeline: transcribe → respond → speak |
+| 56 | `visual_qa` | `IMAGE` | `TEXT` | Gemma 4 via Ollama | `[TODO]` | Multi-turn visual question answering with RAG context |
+| 57 | `video_scene` | `VIDEO` | `TEXT` | Gemma 4 via Ollama | `[TODO]` | Frame extraction via `spl/codecs/video_codec.py` |
 
 ---
 

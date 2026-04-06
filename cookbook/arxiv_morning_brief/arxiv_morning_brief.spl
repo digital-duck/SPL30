@@ -2,14 +2,14 @@
 -- Orchestrator: iterate over arXiv PDF URLs, summarize each paper, write brief.
 --
 -- Run (any of these url formats work):
---   spl3 run arxiv_morning_brief.spl --param urls='["https://arxiv.org/pdf/2501.00001"]'
---   spl3 run arxiv_morning_brief.spl --param urls='https://arxiv.org/pdf/2501.00001'
---   spl3 run arxiv_morning_brief.spl --param urls='url1 url2 url3'
---   spl3 run arxiv_morning_brief.spl --param urls='url1, url2, url3'
---   spl3 run arxiv_morning_brief.spl --param urls='papers.txt'   (one URL per line)
+--   spl run arxiv_morning_brief.spl --param urls='["https://arxiv.org/pdf/2501.00001"]'
+--   spl run arxiv_morning_brief.spl --param urls='https://arxiv.org/pdf/2501.00001'
+--   spl run arxiv_morning_brief.spl --param urls='url1 url2 url3'
+--   spl run arxiv_morning_brief.spl --param urls='url1, url2, url3'
+--   spl run arxiv_morning_brief.spl --param urls='papers.txt'   (one URL per line)
 --
 -- Momagrid:
---   spl3 run arxiv_morning_brief.spl \
+--   spl run arxiv_morning_brief.spl \
 --       --adapter momagrid --hub http://momagrid.org:9000 \
 --       --param urls='papers.txt'
 

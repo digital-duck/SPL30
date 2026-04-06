@@ -1,0 +1,97 @@
+{
+  "_comment": "SPL 3.0 Cookbook Catalog — single source of truth for all recipes.",
+  "_schema": {
+    "is_active":        "bool   — included in default batch run (python cookbook/run_all.py)",
+    "approval_status":  "string — new | approved | wip | disabled | rejected",
+    "category":         "string — multimodal | agentic | basics | ...",
+    "tier":             "int    — 1=Ollama only | 2=OpenAI key | 3=OpenRouter key | 4=both keys",
+    "requires":         "list   — runtime prerequisites: ollama:<model>, env:VAR_NAME"
+  },
+  "recipes": [
+    {
+      "id":              "50",
+      "name":            "Image Caption",
+      "description":     "Describe / analyse / OCR an image using Gemma4 vision (IMAGE → TEXT)",
+      "args":            ["python", "cookbook/50_image_caption/run.py",
+                          "--image", "cookbook/50_image_caption/sample/photo.jpg"],
+      "dir":             "50_image_caption",
+      "log":             "image_caption",
+      "is_active":       true,
+      "approval_status": "new",
+      "category":        "multimodal",
+      "tier":            1,
+      "requires":        ["ollama:gemma4:e4b"]
+    },
+    {
+      "id":              "51",
+      "name":            "Audio Summary",
+      "description":     "Transcribe / summarise / extract key points from audio (AUDIO → TEXT)",
+      "args":            ["python", "cookbook/51_audio_summary/run.py",
+                          "--audio", "cookbook/51_audio_summary/sample/clip.mp3"],
+      "dir":             "51_audio_summary",
+      "log":             "audio_summary",
+      "is_active":       false,
+      "approval_status": "new",
+      "category":        "multimodal",
+      "tier":            3,
+      "requires":        ["env:OPENROUTER_API_KEY"]
+    },
+    {
+      "id":              "52",
+      "name":            "Text to Image",
+      "description":     "Generate an image from a text prompt using DALL-E 3 (TEXT → IMAGE)",
+      "args":            ["python", "cookbook/52_text_to_image/run.py",
+                          "--prompt", "A serene mountain lake at golden hour, photorealistic"],
+      "dir":             "52_text_to_image",
+      "log":             "text_to_image",
+      "is_active":       false,
+      "approval_status": "new",
+      "category":        "multimodal",
+      "tier":            2,
+      "requires":        ["env:OPENAI_API_KEY"]
+    },
+    {
+      "id":              "53",
+      "name":            "Text to Speech",
+      "description":     "Convert text to natural speech and save as audio file (TEXT → AUDIO)",
+      "args":            ["python", "cookbook/53_text_to_speech/run.py",
+                          "--text", "Welcome to SPL 3.0 multimodal support."],
+      "dir":             "53_text_to_speech",
+      "log":             "text_to_speech",
+      "is_active":       false,
+      "approval_status": "new",
+      "category":        "multimodal",
+      "tier":            2,
+      "requires":        ["env:OPENAI_API_KEY"]
+    },
+    {
+      "id":              "54",
+      "name":            "Image Restyle",
+      "description":     "Analyse image with Gemma4 vision, restyle with DALL-E 3 (IMAGE+TEXT → TEXT+IMAGE)",
+      "args":            ["python", "cookbook/54_image_restyle/run.py",
+                          "--image", "cookbook/54_image_restyle/sample/photo.jpg",
+                          "--style", "watercolor painting, soft edges, pastel tones"],
+      "dir":             "54_image_restyle",
+      "log":             "image_restyle",
+      "is_active":       false,
+      "approval_status": "new",
+      "category":        "multimodal",
+      "tier":            4,
+      "requires":        ["ollama:gemma4:e4b", "env:OPENAI_API_KEY"]
+    },
+    {
+      "id":              "55",
+      "name":            "Voice Dialogue",
+      "description":     "Full voice assistant pipeline: transcribe → respond → speak (AUDIO+TEXT → TEXT+AUDIO)",
+      "args":            ["python", "cookbook/55_voice_dialogue/run.py",
+                          "--audio", "cookbook/55_voice_dialogue/sample/question.mp3"],
+      "dir":             "55_voice_dialogue",
+      "log":             "voice_dialogue",
+      "is_active":       false,
+      "approval_status": "new",
+      "category":        "multimodal",
+      "tier":            4,
+      "requires":        ["env:OPENROUTER_API_KEY", "env:OPENAI_API_KEY", "ollama:gemma4:e4b"]
+    }
+  ]
+}

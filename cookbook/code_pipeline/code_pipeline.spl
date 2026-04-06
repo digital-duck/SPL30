@@ -8,10 +8,10 @@
 --   - EXCEPTION WHEN catches sub-workflow failures declaratively
 --
 -- Run locally:
---   spl3 run code_pipeline.spl --param spec="Write a binary search function"
+--   spl run code_pipeline.spl --param spec="Write a binary search function"
 --
 -- Run on Momagrid:
---   spl3 run code_pipeline.spl --adapter momagrid --hub http://localhost:8080 \
+--   spl run code_pipeline.spl --adapter momagrid --hub http://localhost:8080 \
 --       --param spec="Write a binary search function"
 
 IMPORT 'generate_code.spl'

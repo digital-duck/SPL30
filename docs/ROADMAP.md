@@ -471,10 +471,95 @@ END
 | `NONE` literal → `Literal(value=None, literal_type='none')` | parser extension | todo |
 | INT/FLOAT coercion in workflow INPUT processing | executor extension | todo |
 | Multimodal param pass-through to LLM adapter | executor + adapters | todo |
-| Liquid AI LFM adapter (`dd-llm` backend) | `dd-llm` package | todo |
+| Liquid AI LFM adapter (Ollama + OpenRouter) | `spl/adapters/liquid.py` | done |
+| `MultiModalMixin` + `ContentPart` types | `spl/adapters/base_multimodal.py` | done |
+| Ubuntu 26.04 snap adapter (placeholder) | `spl/adapters/snap.py` | placeholder |
+| `spl/codecs/` data transform layer (PIL, WAV, video frames) | `spl/codecs/` | todo |
+| `generate_multimodal()` override in LiquidAdapter | `spl/adapters/liquid.py` | todo |
 | `DATACLASS` / `CREATE TYPE` | parser + executor | v3.1 |
 
 ---
+
+---
+
+## SPL 3.0 Multi-Modal Support
+
+*Added: 2026-04-06. Perfect timing — Gemma 4 and Liquid LFM both released with native multi-modal.*
+
+### Why Now
+
+Two model releases make on-device multi-modal practical for DODA workflows:
+
+| Model | Provider | Modalities | Access |
+|---|---|---|---|
+| **Gemma 4** (just released) | Google | image + text | Ollama (`ollama pull gemma4`) |
+| **Liquid LFM-2.5** | Liquid AI | audio + image | Ollama + OpenRouter |
+
+Both are available locally via Ollama — no cloud API key required for prototyping. This is the right moment to validate SPL 3.0's `IMAGE` and `AUDIO` type annotations end-to-end.
+
+### Adapter Architecture
+
+Multi-modal support is additive — all SPL 2.0 adapters continue to work unchanged.
+
+```
+spl/adapters/
+  base_multimodal.py   ← MultiModalMixin, MultiModalAdapter, ContentPart union
+  liquid.py            ← LiquidAdapter (ready for generate_multimodal override)
+  ollama.py            ← OllamaAdapter (SPL20, Gemma 4 passes content array through)
+```
+
+**`ContentPart` union** (mirrors OpenAI / Anthropic content-array format):
+- `TextPart`  — `{"type": "text", "text": "..."}`
+- `ImagePart` — `{"type": "image", "source": "base64"|"url", "media_type": "image/jpeg", "data": "..."}`
+- `AudioPart` — `{"type": "audio", "source": "base64", "media_type": "audio/wav", "data": "..."}`
+- `VideoPart` — `{"type": "video", "frames": [...], "fps": 1.0}`
+
+**`MultiModalMixin`** adds `generate_multimodal(content: list[ContentPart], ...)` to any adapter. The default implementation extracts text parts and falls back to `generate()` — text-only adapters degrade gracefully, no code changes required.
+
+**`supports_multimodal` property** — `True` only if the adapter has overridden `generate_multimodal`. Adapters that natively handle multi-modal input inherit from `MultiModalAdapter(MultiModalMixin, LLMAdapter)`.
+
+### Codecs Layer (earmarked)
+
+Raw data conversion belongs in `spl/codecs/`, separate from the LLM adapter layer:
+
+| Codec | Input | Output | Status |
+|---|---|---|---|
+| `image_codec.py` | PIL Image / file path | base64 `ImagePart` | todo |
+| `audio_codec.py` | WAV / MP3 file path | base64 `AudioPart` | todo |
+| `video_codec.py` | video file path | list of `ImagePart` frames | todo |
+
+The adapter never handles raw files — it receives pre-encoded `ContentPart` dicts from the codec layer. This keeps the LLM API boundary clean.
+
+### DODA Multi-Modal Compile Targets
+
+| Device | Runtime | Model | splc Target | Modality |
+|---|---|---|---|---|
+| Intel Mini-PC | Ollama + OpenVINO | Gemma 4 E4B | `go` | image + text |
+| Mac Mini M4 | Ollama Metal | Gemma 4 27B | `swift` | image + text |
+| Laptop / ARM edge | Ollama | LFM-2.5 | `python/liquid` | audio + image |
+| Ubuntu 26.04 | Inference Snap (future) | LFM-2 2.6B | `snap` | TBD |
+
+### Ubuntu Snap: Wait for GA
+
+`SnapAdapter` is a documented placeholder. Ubuntu 26.04 "Resolute Raccoon" is not yet GA and Canonical has not published a stable inference API spec. Implementation will follow when:
+1. Ubuntu 26.04 ships (expected H1 2026).
+2. Canonical publishes the `ubuntu-ai` snap API.
+3. The snap's local endpoint format is confirmed.
+
+`UBUNTU_AI_URL` env var is reserved. The adapter docstring includes a full "When implementing" checklist.
+
+### Multi-Modal Cookbook Prototypes
+
+Start prototyping immediately to validate SPL 3.0 multi-modal support end-to-end. New `multimodal` category, recipes starting at id 50 (after SPL20's last recipe id 49):
+
+| id | Recipe | Type | Model | Status |
+|---|---|---|---|---|
+| 50 | `image_caption` | IMAGE | Gemma 4 via Ollama | todo — immediately actionable |
+| 51 | `audio_summary` | AUDIO | Liquid LFM-2.5 via Ollama | todo — near-term |
+| 52 | `visual_qa` | IMAGE | Gemma 4 via Ollama | todo — multi-turn vision RAG |
+| 53 | `video_scene` | VIDEO (frames) | Gemma 4 via Ollama | todo — planned |
+
+Recipe 50 (`image_caption`) is the unblocked starting point: Gemma 4 is available on Ollama today, `IMAGE` type is already in `spl/types.py`, and `OllamaAdapter` passes the content array through the `/v1/chat/completions` endpoint unchanged.
 
 ---
 
@@ -513,6 +598,7 @@ The **DODA** philosophy has one invariant: the logic in a `.spl` file never chan
 | :--- | :--- | :--- | :--- |
 | Mac Mini M4/M5 | Unified Memory / Metal | Gemma 4 31B / LFM-2 24B | `--target swift` or `--target ts` |
 | Intel Mini-PC | CPU+iGPU / OpenVINO | Gemma 4 E4B / LFM-2 2.6B | `--target go` + OpenVINO |
+| Laptop / ARM edge | Ollama | LFM-2 2.6B / LFM-2.5 | `--target python/liquid` |
 | Ubuntu 26.04 | Inference Snap (immutable) | LFM-2 2.6B | `--target snap` |
 | Edge / IoT | ARM / Android AICore | Gemma 4 E2B | `--target edge` |
 | Cloud Cluster | vLLM / Triton | Any | `--target vllm` |
@@ -547,6 +633,7 @@ For Ubuntu 26.04 "Resolute Raccoon", `splc --target snap` outputs a `.snap` pack
 - The `inference-snap` interface to bind directly to host GPU/NPU drivers.
 
 One-click deployment on Ubuntu: `sudo snap install my-workflow.snap && spl run my-workflow`.
+
 
 ---
 

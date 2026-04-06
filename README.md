@@ -155,15 +155,15 @@ tests/
 pip install -e ".[dev]"
 
 # Register workflows with local registry
-spl3 register cookbook/code_pipeline/
+spl register cookbook/code_pipeline/
 
 # Run an orchestrator workflow
-spl3 run cookbook/code_pipeline/code_pipeline.spl \
+spl run cookbook/code_pipeline/code_pipeline.spl \
     --adapter ollama --model gemma3 \
     --param spec="Write a Python function to parse JSON"
 
 # Run with Hub registry (Momagrid)
-spl3 run cookbook/code_pipeline/code_pipeline.spl \
+spl run cookbook/code_pipeline/code_pipeline.spl \
     --adapter momagrid --hub http://localhost:8080
 ```
 
