@@ -19,18 +19,18 @@ The `.spl` file never changes when you retarget. Only the compiled output change
 
 ```bash
 # Compile to Go (uses LLM pretrained knowledge)
-python splc/cli.py \
+python spl3/splc/cli.py \
     --spl cookbook/05_self_refine/self_refine.spl \
     --lang go
 
 # Compile to LangGraph Python with a reference codebase
-python splc/cli.py \
+python spl3/splc/cli.py \
     --spl cookbook/05_self_refine/self_refine.spl \
     --lang python/langgraph \
     --references https://github.com/langchain-ai/langgraph
 
 # Preview the prompt without calling the LLM
-python splc/cli.py \
+python spl3/splc/cli.py \
     --spl cookbook/05_self_refine/self_refine.spl \
     --lang python/crewai \
     --dry-run --verbose
@@ -41,7 +41,7 @@ python splc/cli.py \
 ## CLI reference
 
 ```
-python splc/cli.py [OPTIONS]
+python spl3/splc/cli.py [OPTIONS]
 ```
 
 ### Required
@@ -159,7 +159,7 @@ content and injects it into the LLM prompt as grounding context.
 Multiple references are supported — pass `--references` once per source:
 
 ```bash
-python splc/cli.py \
+python spl3/splc/cli.py \
     --spl my_workflow.spl \
     --lang python/crewai \
     --references https://github.com/crewAIInc/crewAI \
@@ -181,18 +181,18 @@ RAG context is **different from `--references`**:
 |---|---|---|
 | What it contains | Similar SPL recipes (logical view) | Target framework code / docs |
 | Purpose | Show the LLM what SPL patterns look like | Ground the LLM in how the target works |
-| Source | `text2spl/rag/.chroma` (local vector store) | GitHub URLs or local paths |
+| Source | `spl3/text2spl/rag/.chroma` (local vector store) | GitHub URLs or local paths |
 | Requires setup | Yes — index the store first | No — fetched on demand |
 
 ### Setup (one-time)
 
 ```bash
 # From SPL30 root, in spl2 conda env
-conda run -n spl2 python text2spl/rag/index_recipes.py
+conda run -n spl2 python spl3/text2spl/rag/index_recipes.py
 ```
 
 This indexes all 41 SPL v2.0 recipes from `SPL20/cookbook/cookbook_catalog.json`
-into a persistent ChromaDB store at `text2spl/rag/.chroma/`.
+into a persistent ChromaDB store at `spl3/text2spl/rag/.chroma/`.
 
 ### How the RAG query works
 

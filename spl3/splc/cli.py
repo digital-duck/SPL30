@@ -83,8 +83,8 @@ SUPPORTED_MODELS = [
     "claude-opus-4-6",
 ]
 
-SPL30_ROOT    = Path(__file__).resolve().parents[1]
-RAG_STORE_DIR = SPL30_ROOT / "text2spl" / "rag" / ".chroma"
+SPL30_ROOT    = Path(__file__).resolve().parents[2]   # spl3/splc/cli.py → SPL30/
+RAG_STORE_DIR = SPL30_ROOT / "spl3" / "text2spl" / "rag" / ".chroma"
 
 
 # ── CLI ───────────────────────────────────────────────────────────────────────
@@ -132,7 +132,7 @@ RAG_STORE_DIR = SPL30_ROOT / "text2spl" / "rag" / ".chroma"
     show_default=True,
     help=(
         "Include RAG examples from the text2spl recipe store as few-shot context. "
-        "Requires the store to be indexed (run text2spl/rag/index_recipes.py first)."
+        "Requires the store to be indexed (run spl3/text2spl/rag/index_recipes.py first)."
     ),
 )
 @click.option(
@@ -353,12 +353,13 @@ def _fetch_rag_examples(spl_source: str, lang: str, *, k: int, verbose: bool) ->
     if not RAG_STORE_DIR.exists():
         if verbose:
             click.echo("  RAG store not found — skipping few-shot examples.")
-            click.echo("  Run: python text2spl/rag/index_recipes.py")
+            click.echo("  Run: python spl3/text2spl/rag/index_recipes.py")
         return ""
 
     try:
-        if str(SPL30_ROOT) not in sys.path:
-            sys.path.insert(0, str(SPL30_ROOT))
+        spl3_dir = str(SPL30_ROOT / "spl3")
+        if spl3_dir not in sys.path:
+            sys.path.insert(0, spl3_dir)
         from text2spl.rag.search import search_recipes
     except ImportError:
         if verbose:

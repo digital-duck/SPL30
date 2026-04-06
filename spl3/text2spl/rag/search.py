@@ -13,8 +13,8 @@ Usage (programmatic):
         print(h["spl_source"])   # inject as few-shot context
 
 Usage (CLI — smoke test):
-    conda run -n spl2 python text2spl/rag/search.py "plan and execute agent"
-    conda run -n spl2 python text2spl/rag/search.py "RAG over documents" --k 5
+    conda run -n spl2 python spl3/text2spl/rag/search.py "plan and execute agent"
+    conda run -n spl2 python spl3/text2spl/rag/search.py "RAG over documents" --k 5
 """
 
 from __future__ import annotations
