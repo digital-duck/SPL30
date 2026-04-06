@@ -1,11 +1,11 @@
-"""SPL 3.0 CLI: spl3
+"""SPL 3.0 CLI: spl
 
 Commands:
-  spl3 register <path>       Register workflows from .spl file(s) into Hub registry
-  spl3 run <file.spl>        Run an orchestrator workflow
-  spl3 registry list         List registered workflows (local + Hub)
-  spl3 peers list            List peer Hubs and their workflow counts
-  spl3 peers add <url>       Add a peer Hub (peering handshake)
+  spl register <path>       Register workflows from .spl file(s) into Hub registry
+  spl run <file.spl>        Run an orchestrator workflow
+  spl registry list         List registered workflows (local + Hub)
+  spl peers list            List peer Hubs and their workflow counts
+  spl peers add <url>       Add a peer Hub (peering handshake)
 """
 
 import asyncio
@@ -13,7 +13,7 @@ import logging
 
 import click
 
-_log = logging.getLogger("spl3.cli")
+_log = logging.getLogger("spl.cli")
 
 
 @click.group()
@@ -28,7 +28,7 @@ def main(ctx, hub, verbose):
 
 
 # ------------------------------------------------------------------ #
-# spl3 run                                                             #
+# spl run                                                             #
 # ------------------------------------------------------------------ #
 
 @main.command()
@@ -40,8 +40,8 @@ def main(ctx, hub, verbose):
 def run(ctx, spl_file, adapter, model, param):
     """Run an orchestrator .spl workflow with workflow composition."""
     from pathlib import Path
-    from spl3.registry import LocalRegistry
-    from spl3._loader import load_workflows_from_file
+    from spl.registry import LocalRegistry
+    from spl._loader import load_workflows_from_file
 
     # Parse params: key=value pairs
     params = {}
@@ -61,8 +61,8 @@ def run(ctx, spl_file, adapter, model, param):
 
 
 async def _run_workflow(path, adapter_name, model, params, hub_url):
-    from spl3.registry import LocalRegistry, FederatedRegistry
-    from spl3.composer import WorkflowComposer
+    from spl.registry import LocalRegistry, FederatedRegistry
+    from spl.composer import WorkflowComposer
 
     try:
         from spl.executor import Executor
@@ -78,9 +78,9 @@ async def _run_workflow(path, adapter_name, model, params, hub_url):
     # Optionally attach Hub registry
     registry = local
     if hub_url:
-        from spl3.hub_registry import HubRegistry
+        from spl.hub_registry import HubRegistry
         hub_reg = HubRegistry(hub_url)
-        from spl3.registry import FederatedRegistry
+        from spl.registry import FederatedRegistry
         registry = FederatedRegistry(local, hub_reg)
         click.echo(f"Hub registry: {hub_url}")
 
@@ -89,7 +89,7 @@ async def _run_workflow(path, adapter_name, model, params, hub_url):
     executor = Executor(adapter=adapter)
 
     # Find the top-level workflow in the file (last defined, or named 'main')
-    from spl3._loader import load_workflows_from_file
+    from spl._loader import load_workflows_from_file
     defns = load_workflows_from_file(path)
     if not defns:
         raise click.ClickException(f"No WORKFLOW definitions found in {path}")
@@ -108,7 +108,7 @@ async def _run_workflow(path, adapter_name, model, params, hub_url):
 
 
 # ------------------------------------------------------------------ #
-# spl3 registry                                                        #
+# spl registry                                                        #
 # ------------------------------------------------------------------ #
 
 @main.group()
@@ -122,7 +122,7 @@ def registry_list(ctx):
     """List all registered workflows."""
     hub_url = ctx.obj.get("hub")
     if hub_url:
-        from spl3.hub_registry import HubRegistry
+        from spl.hub_registry import HubRegistry
         reg = HubRegistry(hub_url)
         workflows = reg.list()
         click.echo(f"Hub {hub_url}: {len(workflows)} workflow(s)")
@@ -138,11 +138,11 @@ def registry_list(ctx):
 def register(ctx, path):
     """Register workflows from a .spl file or directory into the Hub."""
     from pathlib import Path
-    from spl3.registry import LocalRegistry
+    from spl.registry import LocalRegistry
 
     hub_url = ctx.obj.get("hub")
     if not hub_url:
-        raise click.ClickException("--hub <url> required for spl3 register")
+        raise click.ClickException("--hub <url> required for spl register")
 
     local = LocalRegistry()
     p = Path(path)
@@ -151,11 +151,11 @@ def register(ctx, path):
     else:
         count = local.load_file(p)
 
-    from spl3.hub_registry import HubRegistry
+    from spl.hub_registry import HubRegistry
     hub_reg = HubRegistry(hub_url)
 
     # Push each workflow definition to the Hub
-    from spl3.registry import WorkflowDefinition
+    from spl.registry import WorkflowDefinition
     registered = 0
     for name in local.list():
         defn: WorkflowDefinition = local.get(name)
@@ -170,7 +170,7 @@ def register(ctx, path):
 
 
 # ------------------------------------------------------------------ #
-# spl3 peers                                                           #
+# spl peers                                                           #
 # ------------------------------------------------------------------ #
 
 @main.group()
@@ -219,7 +219,7 @@ def peers_add(ctx, peer_url):
 
 
 # ------------------------------------------------------------------ #
-# spl3 test                                                            #
+# spl test                                                            #
 # ------------------------------------------------------------------ #
 
 @main.command("test")
@@ -260,7 +260,7 @@ def cmd_test(ctx, spl_file_or_dir, adapter, model, verbose):
 
 async def _run_tests(spl_files, adapter_name, model, verbose):
     import yaml
-    from spl3.registry import LocalRegistry
+    from spl.registry import LocalRegistry
 
     try:
         from spl.executor import Executor
@@ -279,7 +279,7 @@ async def _run_tests(spl_files, adapter_name, model, verbose):
             _log.debug("No test file for %s — skipping", spl_file.name)
             continue
 
-        from spl3._loader import load_workflows_from_file
+        from spl._loader import load_workflows_from_file
         defns = load_workflows_from_file(spl_file)
         if not defns:
             continue
@@ -332,7 +332,7 @@ async def _run_tests(spl_files, adapter_name, model, verbose):
 
 
 # ------------------------------------------------------------------ #
-# spl3 code-rag                                                        #
+# spl code-rag                                                        #
 # ------------------------------------------------------------------ #
 
 @main.group("code-rag")
@@ -342,7 +342,7 @@ def cmd_code_rag():
 
 @cmd_code_rag.command("seed")
 @click.argument("cookbook_dir", default="cookbook")
-@click.option("--storage-dir", default=".spl3/code_rag", show_default=True,
+@click.option("--storage-dir", default=".spl/code_rag", show_default=True,
               help="Directory for the RAG vector store.")
 @click.option("--catalog", default=None,
               help="Optional cookbook_catalog.json for richer descriptions.")
@@ -354,9 +354,9 @@ def code_rag_seed(cookbook_dir, storage_dir, catalog):
 
     \b
     Example:
-      spl3 code-rag seed cookbook/code_pipeline/ --storage-dir .spl3/code_rag
+      spl code-rag seed cookbook/code_pipeline/ --storage-dir .spl/code_rag
     """
-    from spl3.code_rag import CodeRAGStore
+    from spl.code_rag import CodeRAGStore
     store = CodeRAGStore(storage_dir=storage_dir)
 
     if catalog:
@@ -370,11 +370,11 @@ def code_rag_seed(cookbook_dir, storage_dir, catalog):
 
 @cmd_code_rag.command("query")
 @click.argument("query_text")
-@click.option("--storage-dir", default=".spl3/code_rag", show_default=True)
+@click.option("--storage-dir", default=".spl/code_rag", show_default=True)
 @click.option("--top-k", default=3, show_default=True)
 def code_rag_query(query_text, storage_dir, top_k):
     """Query the Code-RAG index and print matching SPL examples."""
-    from spl3.code_rag import CodeRAGStore
+    from spl.code_rag import CodeRAGStore
     store = CodeRAGStore(storage_dir=storage_dir)
     hits = store.retrieve(query_text, top_k=top_k)
     if not hits:
@@ -387,10 +387,10 @@ def code_rag_query(query_text, storage_dir, top_k):
 
 
 @cmd_code_rag.command("stats")
-@click.option("--storage-dir", default=".spl3/code_rag", show_default=True)
+@click.option("--storage-dir", default=".spl/code_rag", show_default=True)
 def code_rag_stats(storage_dir):
     """Show Code-RAG index statistics."""
-    from spl3.code_rag import CodeRAGStore
+    from spl.code_rag import CodeRAGStore
     store = CodeRAGStore(storage_dir=storage_dir)
     click.echo(f"Code-RAG store: {storage_dir}")
     click.echo(f"  Indexed pairs: {store.count()}")

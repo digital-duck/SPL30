@@ -109,7 +109,7 @@ Because the spec contains workflow signatures, tool contracts, and error-handlin
 
 The spec's Section 7 (Testing Strategy) drives parallel generation of `tests/test_tools.py` and `tests/test_workflow.py`. Same spec → two outputs (workflow + tests), ensuring they're aligned by construction.
 
-Tests validate the **logical view** — they run against the `.spl` directly via `spl3 test`, independent of deployment target. A workflow that passes logical tests is then handed to `splc` for physical compilation; target-specific integration tests are a separate concern.
+Tests validate the **logical view** — they run against the `.spl` directly via `spl test`, independent of deployment target. A workflow that passes logical tests is then handed to `splc` for physical compilation; target-specific integration tests are a separate concern.
 
 ### 6. splc Compilation (Physical Deployment)
 

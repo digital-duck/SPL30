@@ -5,7 +5,7 @@ Run: pytest tests/test_event.py -v
 import time
 import pytest
 
-from spl3.event import (
+from spl.event import (
     WorkflowInvocationEvent,
     EventCallTree,
     EventStatus,

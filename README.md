@@ -124,7 +124,7 @@ same mechanism as the existing multi-node task dispatch.
 ## Repository Layout
 
 ```
-spl3/
+spl/
     registry.py        # WorkflowRegistry (name -> definition)
     composer.py        # Workflow-to-workflow CALL dispatch
     hub_registry.py    # Hub-backed registry via REST

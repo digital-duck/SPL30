@@ -10,9 +10,9 @@ Status legend:
 
 ---
 
-## spl3/ — Core Runtime
+## spl/ — Core Runtime
 
-### Type System (`spl3/types.py`)
+### Type System (`spl/types.py`)
 
 | Feature | Status | Tests |
 |---|---|---|
@@ -30,7 +30,7 @@ Status legend:
 | `is_none_value()` (NONE serializes to `""`) | `[DONE]` | `TestCoerceHelpers` |
 | `SPL3_TYPE_KEYWORDS` dict for lexer extension | `[DONE]` | (unit test via `from_str`) |
 
-### Parser Extensions (`spl3/parser.py`, `spl3/ast_nodes.py`)
+### Parser Extensions (`spl/parser.py`, `spl/ast_nodes.py`)
 
 | Feature | Status | Tests |
 |---|---|---|
@@ -42,7 +42,7 @@ Status legend:
 | `NONE` / `NULL` as expression literal (`@x := NONE`) | `[PARTIAL]` | 4 tests fail — SPL2 base parser rejects NONE as expression token; SPL3Parser extension not yet wired |
 | `NULL` alias for NONE | `[PARTIAL]` | same root cause |
 
-### Loader (`spl3/_loader.py`)
+### Loader (`spl/_loader.py`)
 
 | Feature | Status | Tests |
 |---|---|---|
@@ -50,7 +50,7 @@ Status legend:
 | IMPORT chain resolution (follows imports transitively) | `[DONE]` | `TestImportStatement::test_import_loader_resolves_file` |
 | Circular IMPORT detection + warning (skips, does not crash) | `[DONE]` | `TestImportStatement::test_import_circular_detected` |
 
-### Registry (`spl3/registry.py`)
+### Registry (`spl/registry.py`)
 
 | Feature | Status | Tests |
 |---|---|---|
@@ -59,9 +59,9 @@ Status legend:
 | `load_file()` — parse + register from `.spl` file | `[DONE]` | `TestLocalRegistry::test_load_file` |
 | `load_dir()` — recursive load from directory | `[DONE]` | `TestLocalRegistry::test_load_dir` (uses `cookbook/code_pipeline/`) |
 | `FederatedRegistry` — local-first, Hub fallback on miss | `[DONE]` | `TestFederatedRegistry` |
-| `HubRegistry` — REST-backed registry | `[TODO]` | (designed in `spl3/hub_registry.py`) |
+| `HubRegistry` — REST-backed registry | `[TODO]` | (designed in `spl/hub_registry.py`) |
 
-### Invocation Event Model (`spl3/event.py`)
+### Invocation Event Model (`spl/event.py`)
 
 | Feature | Status | Tests |
 |---|---|---|
@@ -77,7 +77,7 @@ Status legend:
 | `EventCallTree.print_tree()` — visual call tree for debugging | `[DONE]` | `TestEventCallTree::test_print_tree_runs` |
 | `EventCallTree.build()` raises `ValueError` for all-orphaned events | `[PARTIAL]` | 1 test fails — build() returns None instead of raising |
 
-### COMMIT Status → EXCEPTION Channel (`spl3/status.py`)
+### COMMIT Status → EXCEPTION Channel (`spl/status.py`)
 
 | Feature | Status | Tests |
 |---|---|---|
@@ -87,7 +87,7 @@ Status legend:
 | `raise_if_failed()` — raises `WorkflowCompositionError` on non-success | `[DONE]` | `TestRaiseIfFailed` |
 | `WorkflowCompositionError` — typed exception with `exception_type`, `workflow_name`, `status`, `output` fields | `[DONE]` | `TestRaiseIfFailed` |
 
-### Code-RAG (`spl3/code_rag.py`)
+### Code-RAG (`spl/code_rag.py`)
 
 | Feature | Status | Tests |
 |---|---|---|
@@ -95,7 +95,7 @@ Status legend:
 | `seed_from_dir()` — index `.spl` files from a directory | `[PARTIAL]` | same root cause |
 | `seed_from_catalog()` — index from JSON catalog | `[PARTIAL]` | same root cause |
 
-### Workflow Composition (`spl3/composer.py`)
+### Workflow Composition (`spl/composer.py`)
 
 | Feature | Status | Tests |
 |---|---|---|
@@ -106,11 +106,11 @@ Status legend:
 
 ## text2spl/ — Semantic Layer (text → SPL logical view)
 
-### Recipe RAG (`text2spl/rag/`)
+### Shared Recipe RAG (`spl/rag/`)
 
 | Feature | Status | Notes |
 |---|---|---|
-| `index_recipes.py` — index all SPL v2.0 recipes into ChromaDB | `[DONE]` | 41/42 recipes indexed; recipe 22 skipped (shell script, no `.spl`). Uses `dd_embed` (OllamaEmbedAdapter) + `dd_vectordb` (ChromaVectorDB). Run: `python text2spl/rag/index_recipes.py --reset` |
+| `index_recipes.py` — index all SPL v2.0 recipes into ChromaDB | `[DONE]` | 41/42 recipes indexed; recipe 22 skipped (shell script, no `.spl`). Uses `dd_embed` (OllamaEmbedAdapter) + `dd_vectordb` (ChromaVectorDB). Run: `python spl/rag/index_recipes.py --reset` |
 | Context-window truncation (6 000 char cap for nomic-embed-text) | `[DONE]` | Prevents HTTP 500 on long recipes (plan_execute, code_review, ensemble_voting) |
 | `search.py` — `search_recipes(query, k, category)` retrieval | `[DONE]` | Verified: rank-1 hit is semantically exact for 3 test queries |
 | Category filter in search | `[DONE]` | `--category agentic` etc. |
@@ -159,6 +159,6 @@ Status legend:
 
 | Test | Root Cause | Fix |
 |---|---|---|
-| `TestNoneLiteral::test_none_parses` (×4) | SPL2 base parser rejects `NONE` as an expression token — SPL3Parser extension not yet wired into expression dispatch | Extend `spl3/parser.py` to handle `NONE`/`NULL` tokens as `NoneLiteral` AST nodes |
-| `TestCodeRAGStore::*` (×5) | `spl3/code_rag.py` hardcodes `sentence_transformers` as embed provider; not installed in spl2 | Change `_EMBED_PROVIDER = "ollama"` and `_EMBED_MODEL = "nomic-embed-text"` in `code_rag.py` |
+| `TestNoneLiteral::test_none_parses` (×4) | SPL2 base parser rejects `NONE` as an expression token — SPL3Parser extension not yet wired into expression dispatch | Extend `spl/parser.py` to handle `NONE`/`NULL` tokens as `NoneLiteral` AST nodes |
+| `TestCodeRAGStore::*` (×5) | `spl/code_rag.py` hardcodes `sentence_transformers` as embed provider; not installed in spl2 | Change `_EMBED_PROVIDER = "ollama"` and `_EMBED_MODEL = "nomic-embed-text"` in `code_rag.py` |
 | `TestEventCallTree::test_build_raises_without_root` | `EventCallTree.build()` returns `None` instead of raising `ValueError` when no root event exists | Add `if root_node is None: raise ValueError(...)` guard in `build()` |

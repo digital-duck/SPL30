@@ -72,6 +72,12 @@ SUPPORTED_LANGS: dict[str, dict] = {
         "extras":    ["requirements.txt"],
         "framework": "autogen",
     },
+    "python/liquid": {
+        "label":     "Python — Liquid AI (LFM via Ollama / OpenRouter)",
+        "ext":       ".py",
+        "extras":    ["requirements.txt"],
+        "framework": "liquid",
+    },
     # Planned — not yet implemented
     # "swift":  {...},
     # "snap":   {...},
@@ -83,8 +89,8 @@ SUPPORTED_MODELS = [
     "claude-opus-4-6",
 ]
 
-SPL30_ROOT    = Path(__file__).resolve().parents[2]   # spl3/splc/cli.py → SPL30/
-RAG_STORE_DIR = SPL30_ROOT / "spl3" / "text2spl" / "rag" / ".chroma"
+SPL30_ROOT    = Path(__file__).resolve().parents[2]   # spl/splc/cli.py → SPL30/
+RAG_STORE_DIR = SPL30_ROOT / "spl" / "rag" / ".chroma"
 
 
 # ── CLI ───────────────────────────────────────────────────────────────────────
@@ -131,8 +137,8 @@ RAG_STORE_DIR = SPL30_ROOT / "spl3" / "text2spl" / "rag" / ".chroma"
     default=True,
     show_default=True,
     help=(
-        "Include RAG examples from the text2spl recipe store as few-shot context. "
-        "Requires the store to be indexed (run spl3/text2spl/rag/index_recipes.py first)."
+        "Include RAG examples from the shared SPL recipe store as few-shot context. "
+        "Requires the store to be indexed (run spl/rag/index_recipes.py first)."
     ),
 )
 @click.option(
@@ -353,17 +359,17 @@ def _fetch_rag_examples(spl_source: str, lang: str, *, k: int, verbose: bool) ->
     if not RAG_STORE_DIR.exists():
         if verbose:
             click.echo("  RAG store not found — skipping few-shot examples.")
-            click.echo("  Run: python spl3/text2spl/rag/index_recipes.py")
+            click.echo("  Run: python spl/rag/index_recipes.py")
         return ""
 
     try:
-        spl3_dir = str(SPL30_ROOT / "spl3")
-        if spl3_dir not in sys.path:
-            sys.path.insert(0, spl3_dir)
-        from text2spl.rag.search import search_recipes
+        spl_dir = str(SPL30_ROOT / "spl")
+        if spl_dir not in sys.path:
+            sys.path.insert(0, spl_dir)
+        from rag.search import search_recipes
     except ImportError:
         if verbose:
-            click.echo("  WARN: text2spl.rag not importable — skipping RAG context.")
+            click.echo("  WARN: spl.rag not importable — skipping RAG context.")
         return ""
 
     # Use the SPL source as the query to find similar recipes
@@ -488,7 +494,7 @@ Source file: {spl_filename}\
 def _compile(prompt: str, *, model: str, verbose: bool) -> tuple[str, str]:
     """Call the claude_cli adapter and return (implementation, readme)."""
     try:
-        from spl.adapters.claude_cli import ClaudeCliAdapter  # type: ignore
+        from spl.adapters.claude_cli import ClaudeCLIAdapter  # type: ignore
     except ImportError:
         click.echo(
             "ERROR: claude_cli adapter not found. "
@@ -499,7 +505,7 @@ def _compile(prompt: str, *, model: str, verbose: bool) -> tuple[str, str]:
 
     import asyncio
 
-    adapter = ClaudeCliAdapter(model=model)
+    adapter = ClaudeCLIAdapter(model=model)
 
     async def _run() -> str:
         result = await adapter.generate(prompt)

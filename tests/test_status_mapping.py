@@ -4,7 +4,7 @@ Run: pytest tests/test_status_mapping.py -v
 """
 import pytest
 
-from spl3.status import (
+from spl.status import (
     status_to_exception_type,
     raise_if_failed,
     WorkflowCompositionError,

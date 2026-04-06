@@ -25,7 +25,7 @@ import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 
-_log = logging.getLogger("spl3.registry")
+_log = logging.getLogger("spl.registry")
 
 
 @dataclass
@@ -78,7 +78,7 @@ class LocalRegistry:
 
         Returns the number of workflows registered.
         """
-        from spl3._loader import load_workflows_from_file
+        from spl._loader import load_workflows_from_file
         path = Path(path)
         if not path.exists():
             raise RegistryError(f"File not found: {path}")
@@ -115,7 +115,7 @@ class LocalRegistry:
             raise RegistryError(
                 f"Unknown workflow '{name}'. "
                 f"Registered workflows: {known}. "
-                f"Use IMPORT or spl3 register to add it."
+                f"Use IMPORT or spl register to add it."
             )
         return self._workflows[name]
 

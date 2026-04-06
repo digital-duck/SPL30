@@ -45,7 +45,7 @@ def _make_executor(adapter, tool_overrides: dict | None = None):
     registry after construction.  Use this instead of patch.object(ambt, ...)
     because the executor copies function references at __init__ time.
     """
-    from spl3.executor import SPL3Executor
+    from spl.executor import SPL3Executor
     executor = SPL3Executor(adapter=adapter)
     if tool_overrides:
         for name, fn in tool_overrides.items():
@@ -55,8 +55,8 @@ def _make_executor(adapter, tool_overrides: dict | None = None):
 
 def _load_registry():
     """Load the arxiv_morning_brief workflows into a LocalRegistry."""
-    from spl3.registry import LocalRegistry
-    from spl3._loader import load_workflows_from_file
+    from spl.registry import LocalRegistry
+    from spl._loader import load_workflows_from_file
 
     registry = LocalRegistry()
     defns = load_workflows_from_file(RECIPE_DIR / "arxiv_morning_brief.spl")
@@ -66,7 +66,7 @@ def _load_registry():
 
 
 def _make_composer(registry, executor):
-    from spl3.composer import WorkflowComposer
+    from spl.composer import WorkflowComposer
     composer = WorkflowComposer(registry, executor)
     executor.composer = composer
     return composer
@@ -86,9 +86,9 @@ class TestSummarizePaper:
 
     def test_produces_summary(self, sample_pdf, tmp_path):
         """summarize_paper returns a non-empty summary for a valid PDF."""
-        from spl3.registry import LocalRegistry
-        from spl3._loader import load_workflows_from_file
-        from spl3.composer import WorkflowComposer
+        from spl.registry import LocalRegistry
+        from spl._loader import load_workflows_from_file
+        from spl.composer import WorkflowComposer
 
         fake_pdf = str(sample_pdf)
         fake_chunks = self.FAKE_CHUNKS

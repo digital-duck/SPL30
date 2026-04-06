@@ -18,7 +18,7 @@ import json
 import logging
 from pathlib import Path
 
-_log = logging.getLogger("spl3.code_rag")
+_log = logging.getLogger("spl.code_rag")
 
 _EMBED_PROVIDER = "sentence_transformers"
 _EMBED_MODEL    = "all-MiniLM-L6-v2"
@@ -35,11 +35,11 @@ class CodeRAGStore:
         Chroma collection name.
     """
 
-    COLLECTION_NAME = "spl3_code_rag"
+    COLLECTION_NAME = "spl_code_rag"
 
     def __init__(
         self,
-        storage_dir: str = ".spl3/code_rag",
+        storage_dir: str = ".spl/code_rag",
         collection_name: str = COLLECTION_NAME,
     ) -> None:
         from dd_vectordb.adapters.chroma_db import ChromaVectorDB

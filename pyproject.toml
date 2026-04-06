@@ -30,10 +30,12 @@ dev = [
 ]
 
 [project.scripts]
-spl3 = "spl3.cli:main"
+spl3 = "spl.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["spl3*"]
+where = ["."]
+include = ["spl*"]
+exclude = []   # SPL20's spl* is in a different project root — no conflict
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

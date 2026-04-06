@@ -18,12 +18,12 @@ from __future__ import annotations
 import json
 import logging
 
-_log = logging.getLogger("spl3.executor")
+_log = logging.getLogger("spl.executor")
 
 from spl.executor import Executor as SPL2Executor
 
-from spl3.ast_nodes import NoneLiteral, SetLiteral, CallParallelStatement
-from spl3.types import coerce_to_int, coerce_to_float
+from spl.ast_nodes import NoneLiteral, SetLiteral, CallParallelStatement
+from spl.types import coerce_to_int, coerce_to_float
 
 
 # Types that receive numeric coercion in workflow INPUT init
@@ -161,7 +161,7 @@ class SPL3Executor(SPL2Executor):
         """
         composer = getattr(self, "composer", None)
         if composer is not None:
-            from spl3.registry import RegistryError
+            from spl.registry import RegistryError
             try:
                 defn = composer.registry.get(stmt.procedure_name)
             except RegistryError:

@@ -41,9 +41,9 @@ from dataclasses import dataclass, field
 
 import httpx
 
-from spl3.registry import WorkflowDefinition, RegistryError
+from spl.registry import WorkflowDefinition, RegistryError
 
-_log = logging.getLogger("spl3.hub_registry")
+_log = logging.getLogger("spl.hub_registry")
 
 
 @dataclass
@@ -134,7 +134,7 @@ class HubRegistry:
     def register(self, name: str, source: str) -> None:
         """Push a workflow definition to the Hub registry.
 
-        Called by `spl3 register` CLI to populate the Hub's workflow table.
+        Called by `spl register` CLI to populate the Hub's workflow table.
         """
         try:
             resp = httpx.post(

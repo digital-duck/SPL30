@@ -1,11 +1,11 @@
 """
-text2spl/rag/search.py — Retrieval interface for the text2SPL code-RAG store.
+spl/rag/search.py — Retrieval interface for the text2SPL code-RAG store.
 
 This is what the text2SPL generator calls to find the closest few-shot template
 for a user's intent before generating a new .spl script.
 
 Usage (programmatic):
-    from text2spl.rag.search import search_recipes
+    from spl.rag.search import search_recipes
 
     hits = search_recipes("iterative self-improvement loop with critique", k=3)
     for h in hits:
@@ -13,8 +13,8 @@ Usage (programmatic):
         print(h["spl_source"])   # inject as few-shot context
 
 Usage (CLI — smoke test):
-    conda run -n spl2 python spl3/text2spl/rag/search.py "plan and execute agent"
-    conda run -n spl2 python spl3/text2spl/rag/search.py "RAG over documents" --k 5
+    conda run -n spl2 python spl/rag/search.py "plan and execute agent"
+    conda run -n spl2 python spl/rag/search.py "RAG over documents" --k 5
 """
 
 from __future__ import annotations
@@ -70,7 +70,7 @@ def search_recipes(
     if not CHROMA_DIR.exists():
         raise RuntimeError(
             f"RAG store not found at {CHROMA_DIR}. "
-            "Run `python text2spl/rag/index_recipes.py` first."
+            "Run `python spl/rag/index_recipes.py` first."
         )
 
     import dd_embed

@@ -102,7 +102,7 @@ END
 
 > **Momagrid dispatch** — run with parallel sub-workflow dispatch:
 > ```bash
-> spl3 run arxiv_morning_brief.spl \
+> spl run arxiv_morning_brief.spl \
 >     --adapter momagrid --hub http://momagrid-lan:8080 \
 >     --param urls='["https://arxiv.org/pdf/2501.00001","https://arxiv.org/pdf/2501.00002"]' \
 >     --param date='2026-03-31'
@@ -274,7 +274,7 @@ Run against 2 real arXiv URLs. Assert output length > 200 chars. Gate on `ARXIV_
 | Package | Why |
 |---------|-----|
 | `spl-llm>=2.0.0` | SPL20 base (lexer, parser, executor) |
-| `spl3>=0.1.0` | SPL30 runtime, CALL PARALLEL, IMPORT |
+| `spl>=0.1.0` | SPL30 runtime, CALL PARALLEL, IMPORT |
 | `dd-extract` | Structural PDF chunking |
 | `dd-cache` | URL-keyed download cache |
 | `dd-llm` | LLM adapter (Liquid AI LFM or OpenAI fallback) |

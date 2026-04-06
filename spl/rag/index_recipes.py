@@ -1,17 +1,17 @@
 """
-text2spl/rag/index_recipes.py — Populate the code-RAG vector store from SPL v2.0 cookbook.
+spl/rag/index_recipes.py — Populate the shared SPL recipe RAG store from SPL v2.0 cookbook.
 
 Reads all recipes from cookbook_catalog.json, embeds each one (name + description +
 SPL source), and upserts into a persistent ChromaDB collection.
 
-The indexed store is what text2SPL queries at generation time to retrieve the
-closest few-shot template for a user's intent.
+The indexed store is shared by text2spl (NL → .spl) and splc (.spl → target)
+as a source of few-shot SPL recipe examples.
 
 Usage (from SPL30 root):
-    conda run -n spl2 python spl3/text2spl/rag/index_recipes.py
-    conda run -n spl2 python spl3/text2spl/rag/index_recipes.py --catalog /path/to/catalog.json
-    conda run -n spl2 python spl3/text2spl/rag/index_recipes.py --embed-model nomic-embed-text
-    conda run -n spl2 python spl3/text2spl/rag/index_recipes.py --reset   # drop + re-index
+    conda run -n spl2 python spl/rag/index_recipes.py
+    conda run -n spl2 python spl/rag/index_recipes.py --catalog /path/to/catalog.json
+    conda run -n spl2 python spl/rag/index_recipes.py --embed-model nomic-embed-text
+    conda run -n spl2 python spl/rag/index_recipes.py --reset   # drop + re-index
 
 Architecture
 ------------
@@ -28,7 +28,7 @@ from pathlib import Path
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 
-SPL30_ROOT    = Path(__file__).resolve().parents[3]   # spl3/text2spl/rag/index_recipes.py → SPL30/
+SPL30_ROOT    = Path(__file__).resolve().parents[2]   # spl/rag/index_recipes.py → SPL30/
 SPL20_ROOT    = SPL30_ROOT.parent / "SPL20"
 DEFAULT_CATALOG = SPL20_ROOT / "cookbook" / "cookbook_catalog.json"
 CHROMA_DIR    = Path(__file__).parent / ".chroma"

@@ -5,7 +5,7 @@ Run: pytest tests/test_registry.py -v
 import pytest
 from pathlib import Path
 
-from spl3.registry import LocalRegistry, FederatedRegistry, WorkflowDefinition, RegistryError
+from spl.registry import LocalRegistry, FederatedRegistry, WorkflowDefinition, RegistryError
 
 
 COOKBOOK_DIR = Path(__file__).parent.parent / "cookbook" / "code_pipeline"
@@ -47,7 +47,7 @@ class TestLocalRegistry:
         defn1 = WorkflowDefinition("wf", "file1.spl", None)
         defn2 = WorkflowDefinition("wf", "file2.spl", None)
         registry.register(defn1)
-        with caplog.at_level(logging.WARNING, logger="spl3.registry"):
+        with caplog.at_level(logging.WARNING, logger="spl.registry"):
             registry.register(defn2)
         assert "overwriting" in caplog.text
 

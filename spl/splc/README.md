@@ -19,18 +19,18 @@ The `.spl` file never changes when you retarget. Only the compiled output change
 
 ```bash
 # Compile to Go (uses LLM pretrained knowledge)
-python spl3/splc/cli.py \
+python spl/splc/cli.py \
     --spl cookbook/05_self_refine/self_refine.spl \
     --lang go
 
 # Compile to LangGraph Python with a reference codebase
-python spl3/splc/cli.py \
+python spl/splc/cli.py \
     --spl cookbook/05_self_refine/self_refine.spl \
     --lang python/langgraph \
     --references https://github.com/langchain-ai/langgraph
 
 # Preview the prompt without calling the LLM
-python spl3/splc/cli.py \
+python spl/splc/cli.py \
     --spl cookbook/05_self_refine/self_refine.spl \
     --lang python/crewai \
     --dry-run --verbose
@@ -41,7 +41,7 @@ python spl3/splc/cli.py \
 ## CLI reference
 
 ```
-python spl3/splc/cli.py [OPTIONS]
+python spl/splc/cli.py [OPTIONS]
 ```
 
 ### Required
@@ -82,6 +82,7 @@ python spl3/splc/cli.py [OPTIONS]
 | `python/langgraph` | LangGraph | `pip install langgraph langchain-ollama` |
 | `python/crewai` | CrewAI | `pip install crewai langchain-ollama` |
 | `python/autogen` | AutoGen | `pip install pyautogen` |
+| `python/liquid` | Liquid AI (LFM via Ollama / OpenRouter) | `pip install liquidai` or Ollama with LFM2 |
 
 Planned (not yet implemented):
 - `swift` — Apple Metal / M4/M5 (v3.2)
@@ -159,7 +160,7 @@ content and injects it into the LLM prompt as grounding context.
 Multiple references are supported — pass `--references` once per source:
 
 ```bash
-python spl3/splc/cli.py \
+python spl/splc/cli.py \
     --spl my_workflow.spl \
     --lang python/crewai \
     --references https://github.com/crewAIInc/crewAI \
@@ -171,8 +172,8 @@ python spl3/splc/cli.py \
 
 ## RAG context
 
-`splc` optionally pulls similar SPL recipes from the `text2spl` RAG store as
-few-shot examples. These are injected into the prompt *before* the source `.spl`,
+`splc` optionally pulls similar SPL recipes from the shared `text2spl` RAG store
+as few-shot examples. These are injected into the prompt *before* the source `.spl`,
 giving the LLM concrete SPL patterns to ground its translation.
 
 RAG context is **different from `--references`**:
@@ -181,36 +182,29 @@ RAG context is **different from `--references`**:
 |---|---|---|
 | What it contains | Similar SPL recipes (logical view) | Target framework code / docs |
 | Purpose | Show the LLM what SPL patterns look like | Ground the LLM in how the target works |
-| Source | `spl3/text2spl/rag/.chroma` (local vector store) | GitHub URLs or local paths |
+| Source | `spl/rag/.chroma` (shared vector store) | GitHub URLs or local paths |
 | Requires setup | Yes — index the store first | No — fetched on demand |
 
-### Setup (one-time)
+> The RAG store is **shared** with `text2spl`. One store, two consumers.
+> See [`spl/text2spl/README.md`](../text2spl/README.md) for setup, indexing, and the search API.
+
+Quick setup:
 
 ```bash
-# From SPL30 root, in spl2 conda env
-conda run -n spl2 python spl3/text2spl/rag/index_recipes.py
+conda run -n spl2 python spl/rag/index_recipes.py
 ```
-
-This indexes all 41 SPL v2.0 recipes from `SPL20/cookbook/cookbook_catalog.json`
-into a persistent ChromaDB store at `spl3/text2spl/rag/.chroma/`.
 
 ### How the RAG query works
 
 `splc` extracts a description from the source `.spl` file's leading comment
 (skipping generic headers like `Recipe Name:`) and uses it as the semantic query.
-For example, `self_refine.spl` contains:
-
-```sql
--- Iteratively improves output through critique and refinement
-```
-
-That text is embedded and matched against the store. For `self_refine.spl`:
+For `self_refine.spl` (`-- Iteratively improves output through critique and refinement`):
 
 ```
 RAG query: "Iteratively improves output through critique and refinement"
-  [1] score=0.755  #05 Self-Refine       [agentic]
-  [2] score=0.640  #16 Reflection Agent  [agentic]
-  [3] score=0.588  #12 Plan and Execute  [agentic]
+  [1] score=0.245  #05 Self-Refine       [agentic]
+  [2] score=0.360  #16 Reflection Agent  [agentic]
+  [3] score=0.412  #12 Plan and Execute  [agentic]
 ```
 
 The top-k SPL sources are injected as few-shot examples before the target source.
@@ -307,7 +301,7 @@ Human Intent  →  text2spl  →  .spl (logical)  →  splc  →  physical artif
 ```
 
 `text2spl` produces the logical view. `splc` consumes it. They share the RAG
-store (`text2spl/rag/`) but are otherwise independent — `splc` does not need
+store (`spl/rag/`) but are otherwise independent — `splc` does not need
 to know how the `.spl` was generated.
 
 ### LLM adapter

@@ -15,7 +15,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-_log = logging.getLogger("spl3.loader")
+_log = logging.getLogger("spl.loader")
 
 
 def load_workflows_from_file(
@@ -27,7 +27,7 @@ def load_workflows_from_file(
     Handles IMPORT statements recursively.
     _loading is an internal set used to detect circular imports.
     """
-    from spl3.registry import WorkflowDefinition
+    from spl.registry import WorkflowDefinition
 
     try:
         from spl.lexer import Lexer
@@ -37,8 +37,8 @@ def load_workflows_from_file(
             "spl-llm 2.0 must be installed: pip install spl-llm>=2.0.0"
         ) from e
 
-    from spl3.parser import SPL3Parser
-    from spl3.ast_nodes import ImportStatement
+    from spl.parser import SPL3Parser
+    from spl.ast_nodes import ImportStatement
 
     path = path.resolve()
 

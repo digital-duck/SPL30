@@ -13,7 +13,7 @@ class TestCodeRAGStore:
     def test_add_pair_and_retrieve(self, tmp_path):
         pytest.importorskip("dd_vectordb")
         pytest.importorskip("dd_embed")
-        from spl3.code_rag import CodeRAGStore
+        from spl.code_rag import CodeRAGStore
 
         store = CodeRAGStore(storage_dir=str(tmp_path / "rag"))
         store.add_pair(
@@ -30,7 +30,7 @@ class TestCodeRAGStore:
         pytest.importorskip("dd_embed")
         if not COOKBOOK_DIR.exists():
             pytest.skip("cookbook directory not found")
-        from spl3.code_rag import CodeRAGStore
+        from spl.code_rag import CodeRAGStore
 
         store = CodeRAGStore(storage_dir=str(tmp_path / "rag"))
         count = store.seed_from_dir(COOKBOOK_DIR)
@@ -40,7 +40,7 @@ class TestCodeRAGStore:
     def test_format_examples(self, tmp_path):
         pytest.importorskip("dd_vectordb")
         pytest.importorskip("dd_embed")
-        from spl3.code_rag import CodeRAGStore
+        from spl.code_rag import CodeRAGStore
 
         store = CodeRAGStore(storage_dir=str(tmp_path / "rag"))
         store.add_pair(
@@ -53,7 +53,7 @@ class TestCodeRAGStore:
     def test_retrieve_empty_store(self, tmp_path):
         pytest.importorskip("dd_vectordb")
         pytest.importorskip("dd_embed")
-        from spl3.code_rag import CodeRAGStore
+        from spl.code_rag import CodeRAGStore
 
         store = CodeRAGStore(storage_dir=str(tmp_path / "rag"))
         results = store.retrieve("any query", top_k=3)
@@ -62,7 +62,7 @@ class TestCodeRAGStore:
     def test_count(self, tmp_path):
         pytest.importorskip("dd_vectordb")
         pytest.importorskip("dd_embed")
-        from spl3.code_rag import CodeRAGStore
+        from spl.code_rag import CodeRAGStore
 
         store = CodeRAGStore(storage_dir=str(tmp_path / "rag"))
         assert store.count() == 0

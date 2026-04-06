@@ -78,7 +78,7 @@ class WorkflowInvocationEvent:
 
     parent_event_id event_id of the calling workflow, if this invocation
                     was triggered by a CALL statement inside another
-                    workflow. None for top-level invocations (spl3 run).
+                    workflow. None for top-level invocations (spl run).
                     Chains form a call tree rooted at the top-level event.
 
     submitted_at    Unix timestamp when the event was created (CALL executed).

@@ -24,7 +24,7 @@ from spl.ast_nodes import (
     CallStatement,
 )
 
-from spl3.ast_nodes import (
+from spl.ast_nodes import (
     NoneLiteral, SetLiteral, ImportStatement,
     CallParallelBranch, CallParallelStatement,
 )

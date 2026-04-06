@@ -44,7 +44,7 @@ conda activate spl2          # the environment where spl-llm, dd-* are installed
 Verify the key packages are present:
 
 ```bash
-python -c "import spl; import spl3; import dd_extract; import dd_cache; print('OK')"
+python -c "import spl; import spl; import dd_extract; import dd_cache; print('OK')"
 ```
 
 ### Environment variables
@@ -111,7 +111,7 @@ Expected: **20 passed in ~7s**
 conda activate spl2
 cd /home/papagame/projects/digital-duck/SPL30/cookbook/arxiv_morning_brief
 
-spl3 run arxiv_morning_brief.spl \
+spl run arxiv_morning_brief.spl \
     --param urls='["https://arxiv.org/pdf/2501.12948","https://arxiv.org/pdf/2501.12345"]' \
     --param date='2026-03-31'
 ```
@@ -119,7 +119,7 @@ spl3 run arxiv_morning_brief.spl \
 Output is printed to stdout as Markdown. Pipe to a file:
 
 ```bash
-spl3 run arxiv_morning_brief.spl \
+spl run arxiv_morning_brief.spl \
     --param urls='["https://arxiv.org/pdf/2501.12948"]' \
     > ~/morning-brief-$(date +%F).md
 ```
@@ -127,7 +127,7 @@ spl3 run arxiv_morning_brief.spl \
 ### With explicit model
 
 ```bash
-spl3 run arxiv_morning_brief.spl \
+spl run arxiv_morning_brief.spl \
     --model claude-sonnet-4-6 \
     --param urls='["https://arxiv.org/pdf/2501.12948"]'
 ```
@@ -135,12 +135,12 @@ spl3 run arxiv_morning_brief.spl \
 ### Momagrid dispatch (LAN GPU grid)
 
 ```bash
-spl3 run arxiv_morning_brief.spl \
+spl run arxiv_morning_brief.spl \
     --adapter momagrid --hub http://momagrid.org:9000 \
     --param urls='arxiv-papers.txt' \
     --param date='2026-03-31'
 
-spl3 run arxiv_morning_brief.spl \
+spl run arxiv_morning_brief.spl \
     --adapter momagrid --hub http://momagrid.org:9000 \
     --param urls="https://arxiv.org/abs/2602.15860 https://arxiv.org/abs/2601.09732, https://arxiv.org/abs/2602.21257" \
     --param date='2026-03-31'
@@ -177,7 +177,7 @@ Subsequent runs for the same URLs on the same day skip the download.
 
 | Symptom | Likely cause | Fix |
 |---------|-------------|-----|
-| `ModuleNotFoundError: spl3` | Wrong conda env | `conda activate spl2` |
+| `ModuleNotFoundError: spl` | Wrong conda env | `conda activate spl2` |
 | `ToolError: HTTP 429` | arXiv rate limit hit | Increase `_RATE_LIMIT_SECS` in tools.py (default 3s) |
 | `ToolError: No text extracted` | Scanned/image PDF | Use `PDFExtractor(engine="docling")` in tools.py |
 | `MaxIterationsReached` | Very long paper (>25 chunks) | Add `--param max_tokens=256` to reduce chunk summaries |
@@ -193,10 +193,10 @@ Gated on `ARXIV_INTEGRATION=1` to avoid accidental API spend:
 ARXIV_INTEGRATION=1 python -c "
 import asyncio, json, sys
 sys.path.insert(0, '.')
-from spl3._loader import load_workflows_from_file
-from spl3.registry import LocalRegistry
-from spl3.composer import WorkflowComposer
-from spl3.executor import SPL3Executor
+from spl._loader import load_workflows_from_file
+from spl.registry import LocalRegistry
+from spl.composer import WorkflowComposer
+from spl.executor import SPL3Executor
 from spl.adapters.anthropic import AnthropicAdapter
 import tools  # registers @spl_tool functions
 

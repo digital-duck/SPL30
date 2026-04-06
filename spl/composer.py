@@ -27,9 +27,9 @@ import logging
 import time
 from dataclasses import dataclass
 
-from spl3.status import raise_if_failed
+from spl.status import raise_if_failed
 
-_log = logging.getLogger("spl3.composer")
+_log = logging.getLogger("spl.composer")
 
 
 @dataclass
@@ -56,7 +56,7 @@ class WorkflowComposer:
 
     def __init__(self, registry, executor) -> None:
         """
-        registry: spl3.registry.LocalRegistry | FederatedRegistry
+        registry: spl.registry.LocalRegistry | FederatedRegistry
         executor: spl.executor.Executor (SPL 2.0 executor instance)
         """
         self.registry = registry

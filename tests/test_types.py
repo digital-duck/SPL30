@@ -22,7 +22,7 @@ import pytest
 def _parse(source: str):
     """Lex + parse SPL3 source, return the parsed Program."""
     from spl.lexer import Lexer
-    from spl3.parser import SPL3Parser
+    from spl.parser import SPL3Parser
     tokens = Lexer(source).tokenize()
     return SPL3Parser(tokens).parse()
 
@@ -34,8 +34,8 @@ def _eval_expr_source(source: str) -> str:
     use the executor's _eval_expression without an LLM call.
     """
     from spl.lexer import Lexer
-    from spl3.parser import SPL3Parser
-    from spl3.executor import SPL3Executor
+    from spl.parser import SPL3Parser
+    from spl.executor import SPL3Executor
 
     # Wrap in assignment: @_result := <expr>
     wrapped = f"@_result := {source}"
@@ -63,20 +63,20 @@ def _eval_expr_source(source: str) -> str:
 class TestNoneLiteral:
 
     def test_none_parses(self):
-        from spl3.ast_nodes import NoneLiteral
+        from spl.ast_nodes import NoneLiteral
         program = _parse("@x := NONE")
         stmt = program.statements[0]
         assert isinstance(stmt.expression, NoneLiteral)
 
     def test_null_alias_parses(self):
         """NULL is a case-insensitive alias for NONE."""
-        from spl3.ast_nodes import NoneLiteral
+        from spl.ast_nodes import NoneLiteral
         program = _parse("@x := NULL")
         stmt = program.statements[0]
         assert isinstance(stmt.expression, NoneLiteral)
 
     def test_none_lowercase_parses(self):
-        from spl3.ast_nodes import NoneLiteral
+        from spl.ast_nodes import NoneLiteral
         program = _parse("@x := none")
         stmt = program.statements[0]
         assert isinstance(stmt.expression, NoneLiteral)
@@ -101,7 +101,7 @@ class TestNoneLiteral:
             "END"
         )
         from spl.ast_nodes import WorkflowStatement
-        from spl3.ast_nodes import NoneLiteral
+        from spl.ast_nodes import NoneLiteral
         stmt = program.statements[0]
         assert isinstance(stmt, WorkflowStatement)
         param = stmt.inputs[0]
@@ -116,7 +116,7 @@ class TestNoneLiteral:
 class TestSetLiteral:
 
     def test_set_literal_parses(self):
-        from spl3.ast_nodes import SetLiteral
+        from spl.ast_nodes import SetLiteral
         program = _parse("@tags := {'python', 'sql', 'linux'}")
         stmt = program.statements[0]
         assert isinstance(stmt.expression, SetLiteral)
@@ -150,7 +150,7 @@ class TestSetLiteral:
 
     def test_set_trailing_comma(self):
         """Trailing comma in set literal is tolerated."""
-        from spl3.ast_nodes import SetLiteral
+        from spl.ast_nodes import SetLiteral
         program = _parse("@tags := {'a', 'b', 'c',}")
         stmt = program.statements[0]
         assert isinstance(stmt.expression, SetLiteral)
@@ -160,7 +160,7 @@ class TestSetLiteral:
         """Single-element: no comma → actually parsed as MAP-like expression.
         A single brace {expr} with no colon and no comma falls through to
         a single-element set — edge case handled gracefully."""
-        from spl3.ast_nodes import SetLiteral
+        from spl.ast_nodes import SetLiteral
         # Single element followed by } has no comma → parsed as SET with 1 element
         program = _parse("@x := {'only'}")
         stmt = program.statements[0]
@@ -214,8 +214,8 @@ class TestNumericTypes:
     async def test_int_coercion_integer_string(self):
         """INT-typed param: '42' → coerced to '42'."""
         from spl.lexer import Lexer
-        from spl3.parser import SPL3Parser
-        from spl3.executor import SPL3Executor
+        from spl.parser import SPL3Parser
+        from spl.executor import SPL3Executor
 
         source = (
             "WORKFLOW w\n"
@@ -245,8 +245,8 @@ class TestNumericTypes:
     async def test_int_coercion_float_string(self):
         """INT-typed param: '7.9' → truncated to '7'."""
         from spl.lexer import Lexer
-        from spl3.parser import SPL3Parser
-        from spl3.executor import SPL3Executor
+        from spl.parser import SPL3Parser
+        from spl.executor import SPL3Executor
 
         source = (
             "WORKFLOW w\n"
@@ -275,8 +275,8 @@ class TestNumericTypes:
     async def test_float_coercion(self):
         """FLOAT-typed param: '3.14' stored as '3.14'."""
         from spl.lexer import Lexer
-        from spl3.parser import SPL3Parser
-        from spl3.executor import SPL3Executor
+        from spl.parser import SPL3Parser
+        from spl.executor import SPL3Executor
 
         source = (
             "WORKFLOW w\n"
@@ -340,8 +340,8 @@ class TestMultimodalTypes:
     async def test_multimodal_param_passed_through(self, type_name):
         """Multimodal params pass through unchanged — no coercion."""
         from spl.lexer import Lexer
-        from spl3.parser import SPL3Parser
-        from spl3.executor import SPL3Executor
+        from spl.parser import SPL3Parser
+        from spl.executor import SPL3Executor
 
         source = (
             f"WORKFLOW w\n"
@@ -396,7 +396,7 @@ class TestSetTypeAnnotation:
 class TestImportStatement:
 
     def test_import_parses(self):
-        from spl3.ast_nodes import ImportStatement
+        from spl.ast_nodes import ImportStatement
         program = _parse("IMPORT 'lib/agents.spl'")
         assert len(program.statements) == 1
         stmt = program.statements[0]
@@ -404,7 +404,7 @@ class TestImportStatement:
         assert stmt.path == "lib/agents.spl"
 
     def test_import_before_workflow(self):
-        from spl3.ast_nodes import ImportStatement
+        from spl.ast_nodes import ImportStatement
         from spl.ast_nodes import WorkflowStatement
         source = (
             "IMPORT 'shared/validators.spl'\n"
@@ -420,7 +420,7 @@ class TestImportStatement:
 
     def test_import_loader_resolves_file(self, tmp_path):
         """load_workflows_from_file follows IMPORT and loads referenced workflows."""
-        from spl3._loader import load_workflows_from_file
+        from spl._loader import load_workflows_from_file
 
         # Create a shared library file
         lib_file = tmp_path / "lib.spl"
@@ -455,14 +455,14 @@ class TestImportStatement:
     def test_import_circular_detected(self, tmp_path, caplog):
         """Circular IMPORT is detected and skipped with a warning."""
         import logging
-        from spl3._loader import load_workflows_from_file
+        from spl._loader import load_workflows_from_file
 
         a = tmp_path / "a.spl"
         b = tmp_path / "b.spl"
         a.write_text("IMPORT 'b.spl'\nWORKFLOW wf_a INPUT: @x TEXT OUTPUT: @y TEXT DO COMMIT 'a' END")
         b.write_text("IMPORT 'a.spl'\nWORKFLOW wf_b INPUT: @x TEXT OUTPUT: @y TEXT DO COMMIT 'b' END")
 
-        with caplog.at_level(logging.WARNING, logger="spl3.loader"):
+        with caplog.at_level(logging.WARNING, logger="spl.loader"):
             defns = load_workflows_from_file(a)
 
         assert "Circular" in caplog.text
@@ -478,7 +478,7 @@ class TestImportStatement:
 class TestSPL3Type:
 
     def test_from_str_canonical(self):
-        from spl3.types import SPL3Type
+        from spl.types import SPL3Type
         assert SPL3Type.from_str("TEXT") == SPL3Type.TEXT
         assert SPL3Type.from_str("INT") == SPL3Type.INT
         assert SPL3Type.from_str("FLOAT") == SPL3Type.FLOAT
@@ -487,7 +487,7 @@ class TestSPL3Type:
         assert SPL3Type.from_str("IMAGE") == SPL3Type.IMAGE
 
     def test_from_str_aliases(self):
-        from spl3.types import SPL3Type
+        from spl.types import SPL3Type
         assert SPL3Type.from_str("BOOLEAN") == SPL3Type.BOOL
         assert SPL3Type.from_str("NULL") == SPL3Type.NONE
         assert SPL3Type.from_str("INTEGER") == SPL3Type.INT
@@ -496,18 +496,18 @@ class TestSPL3Type:
         assert SPL3Type.from_str("STRUCT") == SPL3Type.DATACLASS
 
     def test_from_str_case_insensitive(self):
-        from spl3.types import SPL3Type
+        from spl.types import SPL3Type
         assert SPL3Type.from_str("text") == SPL3Type.TEXT
         assert SPL3Type.from_str("Float") == SPL3Type.FLOAT
         assert SPL3Type.from_str("none") == SPL3Type.NONE
 
     def test_from_str_unknown_raises(self):
-        from spl3.types import SPL3Type
+        from spl.types import SPL3Type
         with pytest.raises(ValueError, match="Unknown SPL type"):
             SPL3Type.from_str("BANANA")
 
     def test_is_multimodal(self):
-        from spl3.types import SPL3Type
+        from spl.types import SPL3Type
         assert SPL3Type.IMAGE.is_multimodal
         assert SPL3Type.AUDIO.is_multimodal
         assert SPL3Type.VIDEO.is_multimodal
@@ -515,21 +515,21 @@ class TestSPL3Type:
         assert not SPL3Type.INT.is_multimodal
 
     def test_is_collection(self):
-        from spl3.types import SPL3Type
+        from spl.types import SPL3Type
         assert SPL3Type.LIST.is_collection
         assert SPL3Type.SET.is_collection
         assert SPL3Type.MAP.is_collection
         assert not SPL3Type.TEXT.is_collection
 
     def test_is_numeric(self):
-        from spl3.types import SPL3Type
+        from spl.types import SPL3Type
         assert SPL3Type.INT.is_numeric
         assert SPL3Type.FLOAT.is_numeric
         assert SPL3Type.NUMBER.is_numeric
         assert not SPL3Type.TEXT.is_numeric
 
     def test_python_equivalent(self):
-        from spl3.types import SPL3Type
+        from spl.types import SPL3Type
         assert SPL3Type.INT.python_equivalent == "int"
         assert SPL3Type.FLOAT.python_equivalent == "float"
         assert SPL3Type.NONE.python_equivalent == "None"
@@ -544,30 +544,30 @@ class TestSPL3Type:
 class TestCoerceHelpers:
 
     def test_coerce_to_int_integer_string(self):
-        from spl3.types import coerce_to_int
+        from spl.types import coerce_to_int
         assert coerce_to_int("42") == 42
 
     def test_coerce_to_int_float_string(self):
-        from spl3.types import coerce_to_int
+        from spl.types import coerce_to_int
         assert coerce_to_int("7.9") == 7
 
     def test_coerce_to_int_invalid_raises(self):
-        from spl3.types import coerce_to_int
+        from spl.types import coerce_to_int
         with pytest.raises(ValueError):
             coerce_to_int("not_a_number")
 
     def test_coerce_to_float(self):
-        from spl3.types import coerce_to_float
+        from spl.types import coerce_to_float
         assert coerce_to_float("3.14") == pytest.approx(3.14)
         assert coerce_to_float("42") == pytest.approx(42.0)
 
     def test_coerce_to_float_invalid_raises(self):
-        from spl3.types import coerce_to_float
+        from spl.types import coerce_to_float
         with pytest.raises(ValueError):
             coerce_to_float("not_a_number")
 
     def test_is_none_value(self):
-        from spl3.types import is_none_value
+        from spl.types import is_none_value
         assert is_none_value("")
         assert is_none_value("none")
         assert is_none_value("null")

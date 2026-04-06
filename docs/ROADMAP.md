@@ -90,7 +90,7 @@ is a design-time concern only — at runtime, identity is `event_id`, not name.
 
 Every `CALL workflow_name()` inside a running workflow creates a child event
 that records its `parent_event_id`. This forms a call tree rooted at the
-top-level invocation (`spl3 run`):
+top-level invocation (`spl run`):
 
 ```
 code_pipeline [event: abc-001, root]
@@ -149,7 +149,7 @@ Backward compatible: SPL 2.0 nodes ignore unknown fields.
 
 ### Implementation: WorkflowInvocationEvent
 
-See `spl3/event.py` for the full dataclass implementation including:
+See `spl/event.py` for the full dataclass implementation including:
 - Lifecycle transition methods (`mark_running`, `mark_complete`, `mark_failed`)
 - Hub protocol serialization (`to_task_payload`, `from_task_response`)
 - `EventCallTree.build()` — reconstruct call tree from flat event list
@@ -404,7 +404,7 @@ SPL is framed as a synthesis language — it should feel natural to developers f
 
 **INT and FLOAT split NUMBER** — `NUMBER` is kept as a backward-compatible alias that accepts both int and float. New SPL 3.0 workflows should prefer `INT` for counters/budgets and `FLOAT` for scores/ratios/temperatures. The executor coerces `INT`-typed params via `int(value)` and `FLOAT`-typed params via `float(value)`.
 
-**NONE serializes to `''`** — SPL's variable store is string-based. `NONE` serializes to the empty string `''` at runtime. `is_none_value()` in `spl3/types.py` centralizes this check. SQL developers can write `EVALUATE @x WHEN = NONE THEN ...`; Python developers can check `@x = ''` after assignment.
+**NONE serializes to `''`** — SPL's variable store is string-based. `NONE` serializes to the empty string `''` at runtime. `is_none_value()` in `spl/types.py` centralizes this check. SQL developers can write `EVALUATE @x WHEN = NONE THEN ...`; Python developers can check `@x = ''` after assignment.
 
 **SET `{a, b}` vs MAP `{k: v}` disambiguation** — same rule as Python: if the first element after `{` is followed by `:` it's a MAP; if by `,` or `}` it's a SET. Empty `{}` → MAP (consistent with Python). At runtime, SET serializes as a sorted, deduplicated JSON array.
 
@@ -463,7 +463,7 @@ END
 
 | Change | File | Status |
 |---|---|---|
-| `SPL3Type` enum + coerce helpers | `spl3/types.py` | done |
+| `SPL3Type` enum + coerce helpers | `spl/types.py` | done |
 | Grammar spec additions | `specs/grammar-additions.ebnf` | done |
 | Token keywords: NONE, NULL, IMAGE, AUDIO, VIDEO | lexer extension | todo |
 | `SetLiteral` AST node | AST extension | todo |
@@ -546,7 +546,7 @@ For Ubuntu 26.04 "Resolute Raccoon", `splc --target snap` outputs a `.snap` pack
 - Quantized model weights for the target device class.
 - The `inference-snap` interface to bind directly to host GPU/NPU drivers.
 
-One-click deployment on Ubuntu: `sudo snap install my-workflow.snap && spl3 run my-workflow`.
+One-click deployment on Ubuntu: `sudo snap install my-workflow.snap && spl run my-workflow`.
 
 ---
 
@@ -630,10 +630,10 @@ The guiding question for each feature: "Does this require, enable, or clean up w
 | `WorkflowInvocationEvent` runtime model | Separates definition from invocation; required for concurrent safety |
 | `LocalRegistry` + `FederatedRegistry` | Workflow name → definition resolution; v3.0 foundation |
 | COMMIT status → EXCEPTION channel | Clean error propagation in composed workflows |
-| `spl3 run` CLI | Loads registry, resolves imports, dispatches orchestrator workflow |
-| `spl3 registry list/register` | Introspect and manage the workflow registry |
+| `spl run` CLI | Loads registry, resolves imports, dispatches orchestrator workflow |
+| `spl registry list/register` | Introspect and manage the workflow registry |
 | `STORE @var IN memory.key` | Fully implement workflow memory writes (was stubbed in v2.0) |
-| `spl3 test` pipeline runner | Test orchestrator workflows end-to-end with expected output matching |
+| `spl test` pipeline runner | Test orchestrator workflows end-to-end with expected output matching |
 | Code-RAG seeded from cookbook | 40+ recipes → vector DB; Text2SPL quality leap enabled by composition |
 
 ---
@@ -667,7 +667,7 @@ Everything else — `CALL`, `COMMIT`, `EXCEPTION`, `WHILE`, `WORKFLOW`, `INPUT`,
 
 ### SPL30 Tech Debt: Start Clean, Not Clean Up
 
-SPL30 (`spl3` package) is a greenfield Python package. Unlike SPL20, it uses `dd-*` libraries from day one — no bespoke wrappers:
+SPL30 (`spl` package) is a greenfield Python package. Unlike SPL20, it uses `dd-*` libraries from day one — no bespoke wrappers:
 
 | Layer | SPL20 (tech debt) | SPL30 (clean) |
 |-------|------------------|---------------|

@@ -33,7 +33,7 @@ from dataclasses import dataclass, field
 
 import httpx
 
-_log = logging.getLogger("spl3.peer")
+_log = logging.getLogger("spl.peer")
 
 
 @dataclass
