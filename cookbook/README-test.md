@@ -369,6 +369,83 @@ Saved: cookbook/55_voice_dialogue/outputs/response_1744000000.mp3
 
 ---
 
+---
+
+## Recipe 56: Code Pipeline — NDD Closure (TEXT → TEXT, Tier 1)
+
+The reference implementation of **Natural-language Driven Development (NDD)**
+and the closure principle. Runs entirely on Ollama (no API key needed).
+
+Lifecycle: `generate → review → improve → test` (retry loop) → `document → extract_spec → spec_judge`
+
+See `cookbook/56_code_pipeline/README.md` for full parameter reference.
+
+```bash
+# Minimal — binary search, closure check enabled by default
+spl run cookbook/56_code_pipeline/code_pipeline.spl \
+    --param spec="Write a binary search function that returns the index or -1"
+
+# More complex spec — tests the retry loop
+spl run cookbook/56_code_pipeline/code_pipeline.spl \
+    --param spec="Write a function to flatten a nested list to any depth"
+
+# Increase retry budget for harder specs
+spl run cookbook/56_code_pipeline/code_pipeline.spl \
+    --param spec="Write a function to parse ISO 8601 date strings" \
+    --param max_cycles=5
+
+# Skip closure check (faster, steps 3b and 3c omitted)
+spl run cookbook/56_code_pipeline/code_pipeline.spl \
+    --param spec="Write a function to count word frequencies in a string" \
+    --param check_closure=FALSE
+
+# Custom model
+spl run cookbook/56_code_pipeline/code_pipeline.spl \
+    --param spec="Write a LRU cache with get and put methods" \
+    --param model=llama3.2 \
+    --param max_cycles=3
+```
+
+Expected log output:
+```
+[code_pipeline] started | spec="..." max_cycles=3 check_closure=True
+[code_pipeline] cycle=1 | step 1: generate
+[generate_code] started | spec="..."
+[generate_code] done | output_len=...
+[code_pipeline] cycle=1 | step 1: review
+[code_pipeline] cycle=1 | step 1: improve
+[code_pipeline] cycle=1 | step 2: test
+[test_code] done | result=[PASSED]...
+[code_pipeline] tests passed at cycle=1
+[code_pipeline] step 3: document
+[code_pipeline] step 3: extract spec from implementation
+[code_pipeline] step 3: closure check — spec vs derived spec
+[spec_judge] verdict: CLOSED — implementation matches intent
+[code_pipeline] done | cycles=1 test_passed=True check_closure=True
+```
+
+**What to verify — step by step:**
+
+- [ ] **CALL dispatch works** — each sub-workflow (`generate_code`, `review_code`, etc.) is called via `CALL`, not inlined; verify Hub registry resolves the names
+- [ ] **Sentinel format** — `[PASSED]` / `[FAILED]` in `test_code` output; `[CLOSED]` / `[DIVERGED]` in `spec_judge` output; if the LLM outputs these tokens inside prose rather than on the first line, `EVALUATE contains(...)` still matches correctly
+- [ ] **Retry loop triggers** — run with a deliberately tricky spec and confirm `cycle=2` or `cycle=3` appears in the log when tests fail
+- [ ] **Closure report in final output** — the `@docs` return value should end with a `## Closure Report` section containing the original spec, derived spec, and judge verdict
+- [ ] **String concatenation** — the `@docs := @docs || '...' || @closure_report` assignment in the orchestrator; verify the SPL runtime supports `||` in variable assignment context (not just in `LOGGING`)
+- [ ] **`@out_spec` quality** — read the derived spec in the closure report and check how much semantic content `extract_spec` preserved vs. paraphrased away; this is the most revealing signal of model comprehension
+- [ ] **`check_closure=FALSE` path** — confirm step 3b and 3c are skipped cleanly and `@docs` is returned without the closure section
+- [ ] **`@log_dir` param** — present in all sub-workflow signatures; no `write_file` calls yet in recipes 50–56 (except 05); file logging is a planned follow-up
+
+**Known watch items for this weekend:**
+
+| Item | Risk | What to check |
+|------|------|---------------|
+| `[PASSED]` / `[CLOSED]` token placement | Medium — model may embed token in prose | `EVALUATE contains(...)` handles this; verify no false positives |
+| `\|\|` in assignment context | Medium — runtime may not support | If `@docs` is truncated or empty, this is the cause; workaround: return `@closure_report` as a separate output |
+| `CALL` registry resolution | High — first live test of sub-workflow dispatch | Check Hub logs for `workflow not found` errors; ensure all 7 `.spl` files are registered |
+| LLM refusal on `generate_code` | Low | `EXCEPTION WHEN RefusalToAnswer` should catch; verify `status = 'refused'` surfaces |
+
+---
+
 ## Automated Testing with run_all.py
 
 `run_all.py` reads `cookbook_catalog.json` and runs recipes as subprocesses.
@@ -452,16 +529,23 @@ Status values: `new` → `wip` → `approved` (or `disabled` / `rejected`).
 | Audio convert fails | pydub / ffmpeg missing | `pip install pydub && sudo apt install ffmpeg` |
 | `spl.codecs not found` | SPL30 not installed | `pip install -e .` from SPL30 root |
 | Vision model returns non-JSON (recipe 54) | Gemma4 didn't follow JSON schema | Re-run; the runner falls back to raw output as the DALL-E prompt |
+| `workflow not found` error (recipe 56) | Hub registry missing sub-workflow | Ensure all 7 `.spl` files in `56_code_pipeline/` are registered; check IMPORT resolution |
+| `@docs` empty or truncated (recipe 56) | `\|\|` assignment not supported by runtime | Return `@closure_report` separately; workaround pending runtime fix |
+| `[PASSED]` / `[CLOSED]` never matched | LLM embedded token in prose | `EVALUATE contains(...)` should still match; if not, check SPL `contains()` implementation |
+| `llama3.2 not found` (recipe 05) | Model not pulled | `ollama pull llama3.2` |
+| `gemma3 not found` (recipe 05) | Model not pulled | `ollama pull gemma3` |
 
 ---
 
 ## Recipe Summary
 
-| id | Name | Input | Output | Tier | Key model(s) |
-|---|---|---|---|---|---|
-| 50 | `image_caption` | IMAGE | TEXT | 1 | gemma4:e4b (Ollama) |
-| 51 | `audio_summary` | AUDIO | TEXT | 3 | LFM-2.5 (OpenRouter) |
-| 52 | `text_to_image` | TEXT | IMAGE | 2 | DALL-E 3 (OpenAI) |
-| 53 | `text_to_speech` | TEXT | AUDIO | 2 | OpenAI TTS or system |
-| 54 | `image_restyle` | IMAGE + TEXT | TEXT + IMAGE | 4 | gemma4:e4b + DALL-E 3 |
-| 55 | `voice_dialogue` | AUDIO + TEXT | TEXT + AUDIO | 4 | LFM-2.5 + gemma4:e4b + OpenAI TTS |
+| id | Name | Input | Output | Tier | Key model(s) | Notes |
+|---|---|---|---|---|---|---|
+| 05 | `self_refine` | TEXT | TEXT | 1 | gemma3 + llama3.2 (Ollama) | First `CALL` workflow demo |
+| 50 | `image_caption` | IMAGE | TEXT | 1 | gemma4:e4b (Ollama) | |
+| 51 | `audio_summary` | AUDIO | TEXT | 3 | LFM-2.5 (OpenRouter) | |
+| 52 | `text_to_image` | TEXT | IMAGE | 2 | DALL-E 3 (OpenAI) | |
+| 53 | `text_to_speech` | TEXT | AUDIO | 2 | OpenAI TTS or system | |
+| 54 | `image_restyle` | IMAGE + TEXT | TEXT + IMAGE | 4 | gemma4:e4b + DALL-E 3 | |
+| 55 | `voice_dialogue` | AUDIO + TEXT | TEXT + AUDIO | 4 | LFM-2.5 + gemma4:e4b + OpenAI TTS | |
+| 56 | `code_pipeline` | TEXT (spec) | TEXT (docs + closure report) | 1 | gemma4 (Ollama) | NDD closure; 7 sub-workflows |
