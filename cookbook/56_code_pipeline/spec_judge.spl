@@ -1,0 +1,74 @@
+-- spec_judge.spl
+-- Sub-workflow: LLM-as-judge comparing the original spec against the spec
+-- reverse-engineered from the implementation (closure check).
+--
+-- Closure principle: if extract_spec(generate(spec)) ≈ spec, the system has
+-- reached a fixed point — the implementation faithfully captured the intent.
+-- Divergence reveals semantic drift between what was asked and what was built.
+--
+-- Output tokens:
+--   [CLOSED]   — implementation matches the original intent
+--   [DIVERGED] — implementation drifts from the original spec (see analysis)
+
+CREATE FUNCTION judge_closure(original_spec TEXT, derived_spec TEXT)
+RETURN TEXT
+AS $$
+You are a rigorous software architect acting as a closure judge.
+
+You will be given two specifications:
+- ORIGINAL SPEC: the intent written before implementation
+- DERIVED SPEC:  the spec reverse-engineered from the final implementation
+
+Your task: determine whether the implementation achieved *closure* —
+that is, whether the code faithfully captures the original intent.
+
+ORIGINAL SPEC:
+{original_spec}
+
+DERIVED SPEC (reverse-engineered from implementation):
+{derived_spec}
+
+Analyse the two specs across these dimensions:
+1. Purpose alignment — do they describe the same problem?
+2. Input/output contract — do the signatures and types agree?
+3. Behavioural completeness — does the derived spec cover all cases in the original?
+4. Semantic drift — does the derived spec introduce behaviour not in the original?
+
+Then give your verdict on the first line, followed by your analysis:
+
+If the implementation faithfully captures the original intent (minor wording
+differences are acceptable):
+[CLOSED]
+<brief explanation of why they align>
+
+If the implementation diverges in any meaningful way:
+[DIVERGED]
+<structured diff: what is missing, what was added, what changed semantics>
+$$;
+
+
+WORKFLOW spec_judge
+    INPUT:
+        @spec     TEXT,
+        @out_spec TEXT,
+        @model    TEXT DEFAULT 'gemma4',
+        @log_dir  TEXT DEFAULT 'cookbook/56_code_pipeline/logs-spl'
+    OUTPUT: @closure_report TEXT
+DO
+    LOGGING '[spec_judge] comparing original spec vs derived spec ...' LEVEL INFO
+    GENERATE judge_closure(@spec, @out_spec)
+        WITH OUTPUT BUDGET 1024 TOKENS
+        USING MODEL @model
+        INTO @closure_report
+    EVALUATE @closure_report
+        WHEN contains('[CLOSED]') THEN
+            LOGGING '[spec_judge] verdict: CLOSED — implementation matches intent' LEVEL INFO
+        ELSE
+            LOGGING '[spec_judge] verdict: DIVERGED — semantic drift detected' LEVEL WARN
+    END
+    RETURN @closure_report
+EXCEPTION
+    WHEN ModelUnavailable THEN
+        LOGGING '[spec_judge] model unavailable' LEVEL ERROR
+        RETURN '[ERROR] Spec judge model unavailable.' WITH status = 'failed'
+END

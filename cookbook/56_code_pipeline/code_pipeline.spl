@@ -1,0 +1,125 @@
+-- code_pipeline.spl
+-- Orchestrator: full code generation lifecycle with test-gated iteration
+-- and optional closure check (spec → code → spec' → judge(spec, spec')).
+--
+-- Lifecycle:
+--
+--   Step 1 (generate → review → improve)  ←─────────────────────────────┐
+--   Step 2 (test)                                                         │
+--     [PASSED] → Step 3                                                   │
+--     [FAILED]  → back to Step 1 (up to @max_cycles) ────────────────────┘
+--
+--   Step 3 (document)
+--     └─ document_code   → @docs
+--     └─ extract_spec    → @out_spec        (reverse-engineer spec from code)
+--     └─ spec_judge      → @closure_report  (if @check_closure = TRUE)
+--        [CLOSED]   → implementation matches original intent  ✓
+--        [DIVERGED] → semantic drift detected                 ⚠
+--
+-- The closure check enforces a fixed-point condition on autonomous vibe coding:
+-- the system is self-consistent when extract_spec(code) ≈ original spec.
+--
+-- Demonstrates SPL 3.0 workflow composition:
+--   CALL sub-workflow dispatch via Hub registry
+--   WHILE + EVALUATE for test-gated retry
+--   EVALUATE for optional closure branching
+--   EXCEPTION WHEN for declarative error handling
+--
+-- Run locally:
+--   spl run code_pipeline.spl --param spec="Write a binary search function"
+--
+-- Run on Momagrid:
+--   spl run code_pipeline.spl --adapter momagrid --hub http://localhost:8080 \
+--       --param spec="Write a binary search function"
+
+IMPORT 'generate_code.spl'
+IMPORT 'review_code.spl'
+IMPORT 'improve_code.spl'
+IMPORT 'test_code.spl'
+IMPORT 'document_code.spl'
+IMPORT 'extract_spec.spl'
+IMPORT 'spec_judge.spl'
+
+WORKFLOW code_pipeline
+    INPUT:
+        @spec          TEXT,
+        @model         TEXT    DEFAULT 'gemma4',
+        @max_cycles    INTEGER DEFAULT 3,
+        @check_closure BOOL    DEFAULT TRUE,
+        @log_dir       TEXT    DEFAULT 'cookbook/56_code_pipeline/logs-spl'
+    OUTPUT: @docs TEXT
+DO
+    LOGGING f'[code_pipeline] started | spec="{@spec}" max_cycles={@max_cycles} check_closure={@check_closure}' LEVEL INFO
+
+    @cycle       := 0
+    @test_passed := FALSE
+
+    -- ── Steps 1 + 2: Generate → Review → Improve → Test (with retry) ────
+    WHILE NOT @test_passed AND @cycle < @max_cycles DO
+
+        @cycle := @cycle + 1
+        LOGGING f'[code_pipeline] cycle={@cycle} | step 1: generate' LEVEL INFO
+
+        CALL generate_code(@spec, @model, @log_dir) INTO @code
+        EXCEPTION WHEN RefusalToAnswer THEN
+            LOGGING f'[code_pipeline] generator refused spec at cycle={@cycle}' LEVEL WARN
+            RETURN 'Refused.' WITH status = 'refused'
+        END
+
+        LOGGING f'[code_pipeline] cycle={@cycle} | step 1: review' LEVEL INFO
+        CALL review_code(@code, @model, @log_dir) INTO @feedback
+
+        LOGGING f'[code_pipeline] cycle={@cycle} | step 1: improve' LEVEL INFO
+        CALL improve_code(@code, @feedback, '', @log_dir) INTO @code
+
+        LOGGING f'[code_pipeline] cycle={@cycle} | step 2: test' LEVEL INFO
+        CALL test_code(@code, @spec, @model, @log_dir) INTO @test_result
+
+        EVALUATE @test_result
+            WHEN contains('[PASSED]') THEN
+                LOGGING f'[code_pipeline] tests passed at cycle={@cycle}' LEVEL INFO
+                @test_passed := TRUE
+            ELSE
+                LOGGING f'[code_pipeline] tests failed at cycle={@cycle} | retrying ...' LEVEL WARN
+        END
+
+    END
+
+    -- ── Step 3a: Document ─────────────────────────────────────────────────
+    LOGGING '[code_pipeline] step 3: document' LEVEL INFO
+    CALL document_code(@code, @spec, @model, @log_dir) INTO @docs
+
+    -- ── Step 3b: Extract spec from implementation ─────────────────────────
+    LOGGING '[code_pipeline] step 3: extract spec from implementation' LEVEL INFO
+    CALL extract_spec(@code, @model, @log_dir) INTO @out_spec
+
+    -- ── Step 3c: Closure check (optional) ────────────────────────────────
+    EVALUATE @check_closure
+        WHEN = TRUE THEN
+            LOGGING '[code_pipeline] step 3: closure check — spec vs derived spec' LEVEL INFO
+            CALL spec_judge(@spec, @out_spec, @model, @log_dir) INTO @closure_report
+            @docs := @docs || '
+
+---
+
+## Closure Report
+
+**Original spec:** ' || @spec || '
+
+**Derived spec (from implementation):**
+' || @out_spec || '
+
+**Judge verdict:**
+' || @closure_report
+        ELSE
+            LOGGING '[code_pipeline] closure check skipped' LEVEL DEBUG
+    END
+
+    LOGGING f'[code_pipeline] done | cycles={@cycle} test_passed={@test_passed} check_closure={@check_closure}' LEVEL INFO
+    RETURN @docs
+
+EXCEPTION
+    WHEN ModelUnavailable THEN
+        LOGGING '[code_pipeline] model unavailable' LEVEL ERROR
+        RETURN '[ERROR] Model unavailable.' WITH status = 'failed'
+END

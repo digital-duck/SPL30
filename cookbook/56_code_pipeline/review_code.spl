@@ -1,0 +1,37 @@
+-- review_code.spl
+-- Sub-workflow: review code and return structured improvement feedback.
+
+CREATE FUNCTION reviewer(code TEXT)
+RETURN TEXT
+AS $$
+You are a senior code reviewer.
+
+Review the following code for correctness, clarity, and robustness.
+Provide specific, actionable feedback as a bullet list.
+Focus on logic errors, missing edge cases, and poor naming.
+Do not comment on style preferences or minor formatting.
+
+Code:
+{code}
+$$;
+
+
+WORKFLOW review_code
+    INPUT:
+        @code    TEXT,
+        @model   TEXT DEFAULT 'gemma4',
+        @log_dir TEXT DEFAULT 'cookbook/56_code_pipeline/logs-spl'
+    OUTPUT: @feedback TEXT
+DO
+    LOGGING '[review_code] started' LEVEL INFO
+    GENERATE reviewer(@code)
+        WITH OUTPUT BUDGET 1024 TOKENS
+        USING MODEL @model
+        INTO @feedback
+    LOGGING f'[review_code] done | feedback_len={len(@feedback)}' LEVEL INFO
+    RETURN @feedback
+EXCEPTION
+    WHEN ModelUnavailable THEN
+        LOGGING '[review_code] model unavailable' LEVEL ERROR
+        RETURN '[ERROR] Review model unavailable.' WITH status = 'failed'
+END

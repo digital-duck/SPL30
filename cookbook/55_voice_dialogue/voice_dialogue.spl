@@ -49,7 +49,8 @@ WORKFLOW voice_dialogue
         @llm_model    TEXT   DEFAULT 'gemma4:e4b',
         @tts_voice    TEXT   DEFAULT 'alloy',
         @tts_model    TEXT   DEFAULT 'tts-1',
-        @output_dir   TEXT   DEFAULT 'cookbook/55_voice_dialogue/outputs'
+        @output_dir   TEXT   DEFAULT 'cookbook/55_voice_dialogue/outputs',
+        @log_dir      TEXT   DEFAULT 'cookbook/55_voice_dialogue/logs-spl'
     OUTPUT: @response TEXT
 DO
     LOGGING '[voice_dialogue] step 1: transcribing audio ...' LEVEL INFO
@@ -72,7 +73,7 @@ DO
 
     -- Step 3: TEXT → AUDIO (TTS) is handled by run.py
     -- Output: @response (TEXT) + saved audio file path (side effect)
-    COMMIT @response
+    RETURN @response
 
 EXCEPTION
     WHEN ModelUnavailable THEN

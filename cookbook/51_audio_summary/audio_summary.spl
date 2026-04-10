@@ -56,7 +56,8 @@ WORKFLOW audio_summary
         @mode         TEXT   DEFAULT 'summary',
         @style        TEXT   DEFAULT 'concise paragraph',
         @model        TEXT   DEFAULT 'liquid/lfm-2.5-1.2b-instruct:free',
-        @output_budget INT   DEFAULT 2048
+        @output_budget INT   DEFAULT 2048,
+        @log_dir       TEXT  DEFAULT 'cookbook/51_audio_summary/logs-spl'
     OUTPUT: @result TEXT
 DO
     LOGGING f'[audio_summary] clip={@clip} mode={@mode} model={@model}' LEVEL INFO
@@ -81,7 +82,7 @@ DO
     END
 
     LOGGING f'[audio_summary] done | output_len={len(@result)}' LEVEL INFO
-    COMMIT @result
+    RETURN @result
 
 EXCEPTION
     WHEN ModelUnavailable THEN

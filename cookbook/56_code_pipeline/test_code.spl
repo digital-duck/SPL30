@@ -1,0 +1,51 @@
+-- test_code.spl
+-- Sub-workflow: evaluate code correctness against the original spec.
+-- Returns [PASSED] or [FAILED]\n<feedback> so the orchestrator can branch.
+
+CREATE FUNCTION run_tests(code TEXT, spec TEXT)
+RETURN TEXT
+AS $$
+You are a rigorous code reviewer acting as an automated test suite.
+
+Original specification:
+{spec}
+
+Code to evaluate:
+{code}
+
+Evaluate the code against the specification. Check:
+1. Correctness — does it implement what the spec requires?
+2. Edge cases — are obvious boundary conditions handled?
+3. Logic errors — any off-by-one, wrong conditionals, or missing branches?
+4. Return type / signature — does it match what the spec expects?
+
+If the code fully satisfies the specification with no critical issues,
+output exactly this token on the first line and nothing else:
+[PASSED]
+
+Otherwise output:
+[FAILED]
+<concise bullet list of specific failures or missing requirements>
+$$;
+
+
+WORKFLOW test_code
+    INPUT:
+        @code    TEXT,
+        @spec    TEXT DEFAULT '',
+        @model   TEXT DEFAULT 'gemma4',
+        @log_dir TEXT DEFAULT 'cookbook/56_code_pipeline/logs-spl'
+    OUTPUT: @test_result TEXT
+DO
+    LOGGING '[test_code] started' LEVEL INFO
+    GENERATE run_tests(@code, @spec)
+        WITH OUTPUT BUDGET 1024 TOKENS
+        USING MODEL @model
+        INTO @test_result
+    LOGGING f'[test_code] done | result={@test_result[:50]}' LEVEL INFO
+    RETURN @test_result
+EXCEPTION
+    WHEN ModelUnavailable THEN
+        LOGGING '[test_code] model unavailable' LEVEL ERROR
+        RETURN '[FAILED]\nModel unavailable — cannot evaluate.' WITH status = 'failed'
+END

@@ -42,7 +42,8 @@ WORKFLOW text_to_image
         @enhance      BOOL   DEFAULT TRUE,
         @model        TEXT   DEFAULT 'dall-e-3',
         @output_dir   TEXT   DEFAULT 'cookbook/52_text_to_image/outputs',
-        @llm_model    TEXT   DEFAULT 'gemma4:e4b'
+        @llm_model    TEXT   DEFAULT 'gemma4:e4b',
+        @log_dir      TEXT   DEFAULT 'cookbook/52_text_to_image/logs-spl'
     OUTPUT: @image_path IMAGE
 DO
     LOGGING f'[text_to_image] prompt="{@prompt}" style={@style}' LEVEL INFO
@@ -62,7 +63,7 @@ DO
     -- The runner calls the appropriate backend and saves the file.
     -- @image_path receives the saved file path as a TEXT-encoded IMAGE value.
     LOGGING f'[text_to_image] generating image via {@model}' LEVEL INFO
-    COMMIT @final_prompt
+    RETURN @final_prompt
 
 EXCEPTION
     WHEN ModelUnavailable THEN

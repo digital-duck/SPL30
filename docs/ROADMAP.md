@@ -2,9 +2,9 @@
 
 *Captured: 2026-03-30. These ideas are beyond the current SPL 2.0 arXiv paper.*
 
-> **Implementation progress:** see [FEATURES.md](FEATURES.md) for what is currently
-> implemented and tested. ROADMAP.md tracks *design intent*; FEATURES.md tracks
-> *build status* (test results, known failures, and what remains TODO).
+**Implementation progress:** see [FEATURES.md](FEATURES.md) for what is currently implemented and tested. 
+- ROADMAP.md tracks *design intent*; 
+- FEATURES.md tracks *build status* (test results, known failures, and what remains TODO).
 
 ---
 
@@ -29,9 +29,7 @@ The analogy to a conventional OS is precise, not merely metaphorical:
 | Cloud provider | A large Hub with many nodes and guaranteed uptime |
 | Compute currency | Moma Points — economic layer of the compute internet |
 
-**SPL is the application layer.** Workflows run on this compute OS without
-knowing which Hub or node executes them. The same `.spl` file runs on a
-single laptop, a LAN grid, or routes through a peer Hub on Oracle Cloud —
+**SPL is the application layer.** Workflows run on this compute OS without knowing which Hub or node executes them. The same `.spl` file runs on a single laptop, a LAN grid, or routes through a peer Hub —
 the runtime resolves the target transparently.
 
 ### Hub-to-Hub Peering = The Internet of Agents
@@ -41,8 +39,8 @@ like an AS (Autonomous System) on the internet. Hub-to-Hub peering connects
 these domains:
 
 ```
-[LAN Hub A]──peer──[Oracle Cloud Hub B]──peer──[LAN Hub C]
-  duck, dog, cat       free-tier VMs             goose, ...
+[LAN Hub A]──peer──[LAN Hub B]
+  duck, dog, cat    goose, ...
 ```
 
 A workflow on Hub A can dispatch sub-workflows to Hub B via peering — the same
@@ -50,9 +48,8 @@ POST /tasks → GET /tasks protocol, extended with a `peer_hub` routing field.
 WAN deployment is not a different architecture; it is Hub-to-Hub peering over
 the public internet.
 
-**This also resolves the WAN deployment question:** Oracle Cloud free tier is
-simply the first public peer Hub. The architecture scales to any number of peers
-without protocol changes.
+**Next step:** validate Hub-to-Hub peering between two local Hubs before scaling
+to WAN. The architecture scales to any number of peers without protocol changes.
 
 ### Moma Points as Compute Currency
 
@@ -191,7 +188,7 @@ WORKFLOW generate_code
     OUTPUT: @code TEXT
 DO
     GENERATE coder(@spec) INTO @code
-    COMMIT @code
+    RETURN @code
 END
 
 WORKFLOW review_code
@@ -199,7 +196,7 @@ WORKFLOW review_code
     OUTPUT: @feedback TEXT
 DO
     GENERATE reviewer(@code) INTO @feedback
-    COMMIT @feedback
+    RETURN @feedback
 END
 
 -- Orchestrator workflow
@@ -211,11 +208,12 @@ DO
     CALL review_code(@code) INTO @feedback
     CALL test_code(@code) INTO @test_result
     CALL document_code(@code) INTO @docs
+    GENERATE quality_judge(@code) INTO @quality      -- initialize before WHILE
     WHILE @quality < 0.9 DO
         CALL improve_code(@code, @feedback, @test_result) INTO @code
         GENERATE quality_judge(@code) INTO @quality
     END
-    COMMIT @code
+    RETURN @code
 END
 ```
 
@@ -226,10 +224,10 @@ deterministic. Reusing CALL keeps the language minimal and consistent.
 
 ---
 
-### Design Idea 2: Resolving the COMMIT status question
+### Design Idea 2: Resolving the RETURN status question
 
 **Current behavior (v2.0):**
-`COMMIT @result WITH status = 'complete'` attaches runtime metadata to the
+`RETURN @result WITH status = 'complete'` attaches runtime metadata to the
 workflow's terminal state. This status is currently used by the runner/CLI
 for reporting — it does not flow into the calling scope.
 
@@ -237,8 +235,8 @@ for reporting — it does not flow into the calling scope.
 When a sub-workflow is invoked via `CALL workflow_name() INTO @var`, the caller
 receives the OUTPUT value. But what about the status? Two cases matter:
 
-1. Sub-workflow COMMITs with `status = 'complete'` → caller gets `@var`, proceeds normally.
-2. Sub-workflow COMMITs with `status = 'refused'` or `status = 'partial'` →
+1. Sub-workflow uses RETURN with `status = 'complete'` → caller gets `@var`, proceeds normally.
+2. Sub-workflow uses RETURN with `status = 'refused'` or `status = 'partial'` →
    what does the caller see?
 
 **Proposed resolution:**
@@ -255,7 +253,7 @@ WORKFLOW code_pipeline
 DO
     CALL generate_code(@spec) INTO @code
     EXCEPTION WHEN RefusalToAnswer THEN
-        COMMIT 'Generation refused.' WITH status = 'blocked'
+        RETURN 'Generation refused.' WITH status = 'blocked'
     END
 
     CALL review_code(@code) INTO @feedback
@@ -270,12 +268,29 @@ END
 This keeps OUTPUT clean (single value, typed) and uses the existing EXCEPTION
 hierarchy as the error/status channel — no new primitives needed.
 
-**Simplification for COMMIT inside sub-workflows:**
+**Runtime fallback for unhandled exceptions:**
+`EXCEPTION WHEN` is opt-in — if the user does not handle a given exception type,
+the runtime's default handler takes over rather than crashing the workflow with a
+raw Python traceback. The fallback chain is:
+
+| Scope | Behavior |
+|---|---|
+| User defines `EXCEPTION WHEN X THEN ...` | Handled by SPL user code |
+| Unhandled exception type | Runtime catches it; issues RETURN with `status = 'failed'` and the exception type + message as metadata |
+| Top-level workflow (no parent) | Runtime surfaces a readable error to the CLI — no raw stack trace |
+| Called via CALL (has parent) | Failure propagates up the EXCEPTION channel; parent may catch or also fall through |
+
+SPL users should not need to enumerate every possible LLM error mode. Unhandled =
+runtime takes over is the safe, explicit default. The behavior is documented so it
+is never surprising: *unhandled exceptions mark the workflow failed and surface the
+error message; they do not silently swallow the error or raise an unformatted crash.*
+
+**Simplification for RETURN inside sub-workflows:**
 When a WORKFLOW is called via CALL (not run standalone), the `WITH status = ...`
-clause on COMMIT can be dropped — it becomes optional metadata only meaningful
+clause on RETURN can be dropped — it becomes optional metadata only meaningful
 to the CLI runner. Inside a composition, the EXCEPTION mechanism handles
 non-happy-path outcomes. This means sub-workflow authors do not need to change
-their code: `COMMIT @result` (no status) works correctly in both standalone
+their code: `RETURN @result` (no status) works correctly in both standalone
 and composed contexts.
 
 ---
@@ -338,7 +353,7 @@ No new infrastructure is needed; only a small schema extension:
 | Workflow registry in Hub | Hub | Hub maintains workflow name → definition map; `CALL name()` resolves via Hub lookup |
 | Task type flag | Protocol | Extend POST /tasks payload with `"type": "workflow" \| "generate"` |
 | Scoped variable binding | Executor | Caller's args → callee's INPUT; callee's OUTPUT → caller's INTO @var via Hub register |
-| Status-to-exception mapping | Executor | Non-complete COMMIT status raises typed exception in caller scope |
+| Status-to-exception mapping | Executor | Non-complete RETURN status raises typed exception in caller scope |
 | Multi-file workflow loading | CLI | `spl run orchestrator.spl --workflows lib/*.spl` or an `IMPORT` directive |
 | Hub-to-Hub routing (v2.2+) | Hub peering | `peer_hub` field on task payload enables WAN workflow dispatch |
 
@@ -428,7 +443,7 @@ WORKFLOW summarize_budget
 DO
     GENERATE summarizer(@text, @max_tokens) INTO @summary
     @compression_ratio := len(@summary) / len(@text)
-    COMMIT @summary
+    RETURN @summary
 END
 
 -- SET literal  ({...} without colons)
@@ -440,7 +455,7 @@ WORKFLOW describe_image
     OUTPUT: @answer TEXT
 DO
     GENERATE vision_describe(@photo, @question) INTO @answer
-    COMMIT @answer
+    RETURN @answer
 END
 
 -- DATACLASS (v3.1 design preview)
@@ -455,7 +470,7 @@ WORKFLOW review_code
     OUTPUT: @review CodeReview
 DO
     GENERATE reviewer(@code) WITH FORMAT JSON SCHEMA CodeReview INTO @review
-    COMMIT @review
+    RETURN @review
 END
 ```
 
@@ -716,7 +731,7 @@ The guiding question for each feature: "Does this require, enable, or clean up w
 | `IMPORT 'file.spl'` directive | Multi-file workflow loading; required for composable codebases |
 | `WorkflowInvocationEvent` runtime model | Separates definition from invocation; required for concurrent safety |
 | `LocalRegistry` + `FederatedRegistry` | Workflow name → definition resolution; v3.0 foundation |
-| COMMIT status → EXCEPTION channel | Clean error propagation in composed workflows |
+| RETURN status → EXCEPTION channel | Clean error propagation in composed workflows; unhandled types fall through to runtime default handler |
 | `spl run` CLI | Loads registry, resolves imports, dispatches orchestrator workflow |
 | `spl registry list/register` | Introspect and manage the workflow registry |
 | `STORE @var IN memory.key` | Fully implement workflow memory writes (was stubbed in v2.0) |
@@ -733,7 +748,7 @@ The guiding question for each feature: "Does this require, enable, or clean up w
 | Dedicated Text2SPL model config | Config schema change; can ship as a patch after v3.0 |
 | `PARALLEL DO ... END` (within WORKFLOW) | Subsumed by `CALL PARALLEL`; not needed independently |
 | Specialty SPL fine-tuned model | Requires training data volume not yet available |
-| Hub-to-Hub peering (WAN routing) | Protocol work in progress (Oracle Cloud); v3.1 companion to WAN paper |
+| Hub-to-Hub peering (WAN routing) | Testing peering between 2 local Hubs first; v3.1 companion to WAN paper |
 | Tool Connectors (`tool.pdf_to_md()`) | Orthogonal to composition; can ship independently |
 | `dd-*` library migration (SPL20 tech debt) | SPL20 concern; SPL30 builds on dd-* from day one |
 
@@ -748,7 +763,7 @@ SPL 3.0 introduces exactly two new keywords:
 | `IMPORT` | `IMPORT 'lib/agents.spl'` | Multi-file workflow loading at parse time |
 | `PARALLEL` | `CALL PARALLEL ... END` | Concurrent sub-workflow dispatch |
 
-Everything else — `CALL`, `COMMIT`, `EXCEPTION`, `WHILE`, `WORKFLOW`, `INPUT`, `OUTPUT` — is unchanged syntax with extended runtime semantics. The grammar is minimal; the power comes from the runtime and registry.
+Everything else — `CALL`, `RETURN`, `EXCEPTION`, `WHILE`, `WORKFLOW`, `INPUT`, `OUTPUT` — is unchanged syntax with extended runtime semantics. The grammar is minimal; the power comes from the runtime and registry.
 
 ---
 

@@ -1,7 +1,8 @@
 # SPL 3.0 Cookbook — Testing Guide
 
-Recipes 50–55 validate SPL 3.0 multi-modal support end-to-end.
-Each recipe has a `.spl` logical view and a `run.py` physical runner.
+Recipes 05 and 50–56 validate SPL 3.0 capabilities end-to-end.
+Recipes 50–55 each have a `.spl` logical view and a `run.py` physical runner.
+Recipes 05 and 56 run via the `spl` CLI and demonstrate native workflow composition (`CALL`).
 
 ---
 
@@ -20,7 +21,9 @@ pip install -e .             # SPL30 (LiquidAdapter, codecs, etc.)
 
 ```bash
 ollama serve                 # start if not running
-ollama pull gemma4:e4b       # vision model — recipes 50, 54, 55
+ollama pull gemma4:e4b       # vision model — recipes 50, 54, 55, 56
+ollama pull gemma3           # writer model — recipe 05 self_refine
+ollama pull llama3.2         # critic model — recipe 05 self_refine
 ollama list                  # verify
 ```
 
@@ -84,7 +87,7 @@ asyncio.run(gen())
 
 | Tier | Recipes | Requires | `is_active` default |
 |------|---------|----------|---------------------|
-| 1 | 50 `image_caption` | `ollama:gemma4` | `true` |
+| 1 | 05 `self_refine`, 50 `image_caption`, 56 `code_pipeline` | Ollama only | `true` |
 | 2 | 52 `text_to_image`, 53 `text_to_speech` | `OPENAI_API_KEY` | `false` |
 | 3 | 51 `audio_summary` | `OPENROUTER_API_KEY` | `false` |
 | 4 | 54 `image_restyle`, 55 `voice_dialogue` | `OPENAI_API_KEY` + `OPENROUTER_API_KEY` + Ollama | `false` |
@@ -92,6 +95,47 @@ asyncio.run(gen())
 ---
 
 ## Tier 1 — Ollama only (no API key)
+
+### Recipe 05: Self-Refine (TEXT → TEXT, CALL workflow demo)
+
+The first SPL 3.0 recipe to demonstrate `CALL` sub-workflow dispatch.
+`critique_workflow` is a self-contained `WORKFLOW` called from the orchestrator.
+
+```bash
+# Default task (meditation), gemma3 writer + llama3.2 critic, max 5 iterations
+spl run cookbook/05_self_refine/self_refine.spl
+
+# Custom task
+spl run cookbook/05_self_refine/self_refine.spl \
+    --param task="Explain the closure principle in NDD"
+
+# Fewer iterations, same models
+spl run cookbook/05_self_refine/self_refine.spl \
+    --param task="What is the DODA paradigm?" \
+    --param max_iterations=3
+
+# Same model for writer and critic
+spl run cookbook/05_self_refine/self_refine.spl \
+    --param task="Write a haiku about distributed computing" \
+    --param writer_model=gemma3 \
+    --param critic_model=gemma3
+```
+
+Expected output:
+```
+[self_refine] Self-refine started | max_iterations=5 for task: ...
+[self_refine] Initial draft ready
+[self_refine] Iteration 0 | critiquing ...
+[self_refine] Approved at iteration 2
+```
+
+**What to verify:**
+- [ ] `critique_workflow` is dispatched via `CALL` (not inline `GENERATE`)
+- [ ] `[APPROVED]` sentinel stops the loop early (does not always run to max)
+- [ ] Log files appear in `cookbook/05_self_refine/logs-spl/` (draft_0.md, feedback_0.md, final.md)
+- [ ] `RETURN @current WITH status = 'complete', iterations = @iteration` surfaces correctly
+
+---
 
 ### Recipe 50: Image Caption (IMAGE → TEXT)
 

@@ -43,7 +43,8 @@ WORKFLOW text_to_speech
         @model        TEXT   DEFAULT 'tts-1',
         @prep         BOOL   DEFAULT FALSE,
         @output_dir   TEXT   DEFAULT 'cookbook/53_text_to_speech/outputs',
-        @llm_model    TEXT   DEFAULT 'gemma4:e4b'
+        @llm_model    TEXT   DEFAULT 'gemma4:e4b',
+        @log_dir      TEXT   DEFAULT 'cookbook/53_text_to_speech/logs-spl'
     OUTPUT: @audio_path AUDIO
 DO
     LOGGING f'[text_to_speech] voice={@voice} model={@model} chars={len(@text)}' LEVEL INFO
@@ -62,7 +63,7 @@ DO
     -- AUDIO generation is handled by the physical runner (run.py).
     -- @audio_path receives the saved file path as a TEXT-encoded AUDIO value.
     LOGGING f'[text_to_speech] synthesising via {@model} voice={@voice}' LEVEL INFO
-    COMMIT @script
+    RETURN @script
 
 EXCEPTION
     WHEN ModelUnavailable THEN

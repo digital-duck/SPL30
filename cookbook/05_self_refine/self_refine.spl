@@ -40,6 +40,23 @@ Feedback:
 Write the improved version now.
 $$;
 
+-- Critique as a self-contained sub-workflow (demonstrates CALL workflow)
+WORKFLOW critique_workflow
+  INPUT:
+    @current TEXT,
+    @output_budget INTEGER DEFAULT 2000,
+    @critic_model TEXT DEFAULT 'llama3.2'
+  OUTPUT: @feedback TEXT
+DO
+  GENERATE critique(@current) WITH OUTPUT BUDGET @output_budget TOKENS
+    USING MODEL @critic_model
+    INTO @feedback
+  RETURN @feedback
+EXCEPTION
+  WHEN BudgetExceeded THEN
+    RETURN '[APPROVED]' WITH status = 'budget_limit'
+END
+
 WORKFLOW self_refine
   INPUT:
     @task TEXT DEFAULT 'What are the benefits of meditation?',
@@ -64,9 +81,7 @@ DO
   -- Iterative refinement loop
   WHILE @iteration < @max_iterations DO
     LOGGING f'Iteration {@iteration} | critiquing ...' LEVEL DEBUG
-    GENERATE critique(@current) WITH OUTPUT BUDGET @output_budget TOKENS 
-      USING MODEL @critic_model 
-      INTO @feedback
+    CALL critique_workflow(@current, @output_budget, @critic_model) INTO @feedback
     CALL write_file(f'{@log_dir}/feedback_{@iteration}.md', @feedback) INTO NONE
 
     EVALUATE @feedback

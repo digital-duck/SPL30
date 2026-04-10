@@ -47,7 +47,8 @@ WORKFLOW image_caption
         @question TEXT   DEFAULT 'What is in this image? Describe it in detail.',
         @mode     TEXT   DEFAULT 'caption',
         @model    TEXT   DEFAULT 'gemma4',
-        @output_budget INT DEFAULT 1024
+        @output_budget INT DEFAULT 1024,
+        @log_dir TEXT DEFAULT 'cookbook/50_image_caption/logs-spl'
     OUTPUT: @result TEXT
 DO
     LOGGING f'[image_caption] photo={@photo} mode={@mode} model={@model}' LEVEL INFO
@@ -76,7 +77,7 @@ DO
     END
 
     LOGGING f'[image_caption] done | output_len={len(@result)}' LEVEL INFO
-    COMMIT @result
+    RETURN @result
 
 EXCEPTION
     WHEN ModelUnavailable THEN
