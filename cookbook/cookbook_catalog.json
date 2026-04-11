@@ -192,6 +192,33 @@
       "category":        "multimodal",
       "tier":            1,
       "requires":        ["system:ffmpeg", "ollama:gemma4"]
+    },
+    {
+      "id":              "63",
+      "name":            "Parallel Code Review",
+      "description":     "Style, security, and test-generation reviews run concurrently via CALL PARALLEL; merged into one report (TEXT → TEXT)",
+      "args":            ["spl", "run", "cookbook/63_parallel_code_review/parallel_code_review.spl",
+                          "--param", "code=def add(a, b): return a - b"],
+      "dir":             "63_parallel_code_review",
+      "log":             "parallel_code_review",
+      "is_active":       true,
+      "approval_status": "new",
+      "category":        "agentic",
+      "tier":            1,
+      "requires":        ["ollama:gemma4"]
+    },
+    {
+      "id":              "64",
+      "name":            "Parallel News Digest",
+      "description":     "Summarise three news topics concurrently via CALL PARALLEL; merge into a morning briefing (TEXT → TEXT)",
+      "args":            ["spl", "run", "cookbook/64_parallel_news_digest/parallel_news_digest.spl"],
+      "dir":             "64_parallel_news_digest",
+      "log":             "parallel_news_digest",
+      "is_active":       true,
+      "approval_status": "new",
+      "category":        "agentic",
+      "tier":            1,
+      "requires":        ["ollama:gemma4"]
     }
   ]
 }
