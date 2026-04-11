@@ -115,6 +115,24 @@ spl3 run cookbook/05_self_refine/self_refine.spl \
     --param critic_model="gemma4:e4b" \
     --param log_dir="cookbook/05_self_refine/logs-spl-gemma4-e4b" 
 
+spl3 run cookbook/05_self_refine/self_refine.spl \
+    --adapter claude_cli \
+    --param writer_model="claude-sonnet-4-6" \
+    --param critic_model="claude-sonnet-4-6" \
+    --log-prompts "cookbook/05_self_refine/logs-spl-claude_cli-sonnet" \
+    --param log_dir="cookbook/05_self_refine/logs-spl-claude_cli-sonnet" 
+
+export LOG_DIR="cookbook/05_self_refine/logs-spl-claude_cli-sonnet-2"
+mkdir -p "$LOG_DIR"
+spl3 run cookbook/05_self_refine/self_refine.spl \
+    --adapter claude_cli \
+    --param writer_model="claude-sonnet-4-6" \
+    --param critic_model="claude-sonnet-4-6" \
+    --log-prompts "$LOG_DIR" \
+    --param log_dir="$LOG_DIR" \
+    2>&1 | tee "$LOG_DIR/run-$(date +%Y%m%d-%H%M%S).log"
+
+
 # Custom task
 spl run cookbook/05_self_refine/self_refine.spl \
     --param task="Explain the NDD closure principle in plain language"

@@ -1,4 +1,4 @@
--- spec_judge.spl
+-- 07_spec_judge.spl  [Step 3c]
 -- Sub-workflow: LLM-as-judge comparing the original spec against the spec
 -- reverse-engineered from the implementation (closure check).
 --
@@ -55,20 +55,20 @@ WORKFLOW spec_judge
         @log_dir  TEXT DEFAULT 'cookbook/56_code_pipeline/logs-spl'
     OUTPUT: @closure_report TEXT
 DO
-    LOGGING '[spec_judge] comparing original spec vs derived spec ...' LEVEL INFO
+    LOGGING '[07_spec_judge] comparing original spec vs derived spec ...' LEVEL INFO
     GENERATE judge_closure(@spec, @out_spec)
         WITH OUTPUT BUDGET 1024 TOKENS
         USING MODEL @model
         INTO @closure_report
     EVALUATE @closure_report
         WHEN contains('[CLOSED]') THEN
-            LOGGING '[spec_judge] verdict: CLOSED — implementation matches intent' LEVEL INFO
+            LOGGING '[07_spec_judge] verdict: CLOSED — implementation matches intent' LEVEL INFO
         ELSE
-            LOGGING '[spec_judge] verdict: DIVERGED — semantic drift detected' LEVEL WARN
+            LOGGING '[07_spec_judge] verdict: DIVERGED — semantic drift detected' LEVEL WARN
     END
     RETURN @closure_report
 EXCEPTION
     WHEN ModelUnavailable THEN
-        LOGGING '[spec_judge] model unavailable' LEVEL ERROR
+        LOGGING '[07_spec_judge] model unavailable' LEVEL ERROR
         RETURN '[ERROR] Spec judge model unavailable.' WITH status = 'failed'
 END

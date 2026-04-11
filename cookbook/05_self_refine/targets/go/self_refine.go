@@ -30,32 +30,30 @@ import (
 // ── Prompts ─────────────────────────────────────────────────────────────────
 // SPL equivalent: CREATE FUNCTION ... AS $$ ... $$
 
-const draftPrompt = `You are an expert writer. Complete the following task thoroughly and well.
+const draftPrompt = `You are a professional writer. Write a comprehensive article on the topic below.
+Output only the article — no preamble, no notes after.
 
-Task: %s
+Topic: %s`
 
-Write a high-quality response now.`
+const critiquePrompt = `You are a professional editor. The article below may have meta-commentary or questions
+appended at the end — ignore those, critique only the article body.
 
-const critiquePrompt = `You are a strict critic reviewing written content.
+If the article needs no further improvement, reply with exactly: [APPROVED]
 
-If the content fully meets the bar with no meaningful improvements needed,
-reply with exactly this token and nothing else: [APPROVED]
+Otherwise output a numbered list of specific, actionable improvements. Nothing else.
 
-Otherwise, provide specific, actionable feedback on how to improve it.
-Do NOT output [APPROVED] unless the content truly needs no further work.
-
-Content to review:
-%s`
-
-const refinedPrompt = `You are an expert writer. Improve the following draft based on the feedback.
-
-Draft:
+ARTICLE:
 %s
 
-Feedback:
-%s
+IMPROVEMENTS:
+1.`
 
-Write the improved version now.`
+// refinedPrompt uses string concat to embed literal backticks inside the template.
+const refinedPrompt = "You are a seasoned writer. Rewrite the draft below incorporating the feedback.\n" +
+	"Stay true to the original topic: %s\n" +
+	"Output only the rewritten article — no preamble, no notes after.\n\n" +
+	"DRAFT:\n```\n%s\n```\n\n" +
+	"FEEDBACK:\n```\n%s\n```"
 
 // ── Ollama client ─────────────────────────────────────────────────────────────
 // SPL equivalent: GENERATE func(...) USING MODEL @model INTO @var
@@ -168,9 +166,9 @@ func selfRefine(
 			return current, "complete", iteration, nil
 		}
 
-		// SPL: ELSE → GENERATE refined(@current, @feedback) INTO @current
+		// SPL: ELSE → GENERATE refined(@task, @current, @feedback) INTO @current
 		log.Printf("Iteration %d | refining ...", iteration)
-		current, err = generate(ollamaHost, writerModel, fmt.Sprintf(refinedPrompt, current, feedback))
+		current, err = generate(ollamaHost, writerModel, fmt.Sprintf(refinedPrompt, task, current, feedback))
 		if err != nil {
 			return current, "error", iteration, fmt.Errorf("refine: %w", err)
 		}
@@ -193,8 +191,8 @@ func selfRefine(
 func main() {
 	// SPL: INPUT parameters → CLI flags
 	task        := flag.String("task",          "What are the benefits of meditation?", "Task to refine")
-	maxIter     := flag.Int("max-iterations",   5,              "Maximum refinement iterations")
-	writerModel := flag.String("writer-model",  "gemma3",       "Ollama model for draft + refine")
+	maxIter     := flag.Int("max-iterations",   3,              "Maximum refinement iterations")
+	writerModel := flag.String("writer-model",  "llama3.2",     "Ollama model for draft + refine")
 	criticModel := flag.String("critic-model",  "llama3.2",     "Ollama model for critique")
 	logDir      := flag.String("log-dir",       "logs-go",      "Directory for draft/feedback/final files")
 	ollamaHost  := flag.String("ollama-host",   "http://localhost:11434", "Ollama server URL")

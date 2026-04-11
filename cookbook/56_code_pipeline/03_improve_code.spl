@@ -1,0 +1,48 @@
+-- 03_improve_code.spl  [Step 1c]
+-- Sub-workflow: improve code given review feedback and optional test failures.
+--
+-- Artifacts written:
+--   target/{lang}/code.md  — improved source code (overwrites previous draft)
+
+CREATE FUNCTION refactor(code TEXT, feedback TEXT, test_result TEXT, lang TEXT)
+RETURN TEXT
+AS $$
+You are an expert {lang} developer improving code based on feedback.
+
+Original code:
+{code}
+
+Review feedback:
+{feedback}
+
+Test failures (if any):
+{test_result}
+
+Rewrite the code addressing all feedback and fixing all test failures.
+Return only the improved {lang} code — no explanation, no markdown fences.
+$$;
+
+
+WORKFLOW improve_code
+    INPUT:
+        @code        TEXT,
+        @feedback    TEXT,
+        @test_result TEXT DEFAULT '',
+        @lang        TEXT DEFAULT 'python',
+        @model       TEXT DEFAULT 'gemma4',
+        @log_dir     TEXT DEFAULT 'cookbook/56_code_pipeline/logs-spl'
+    OUTPUT: @improved TEXT
+DO
+    LOGGING f'[03_improve_code] started | lang={@lang}' LEVEL INFO
+    GENERATE refactor(@code, @feedback, @test_result, @lang)
+        WITH OUTPUT BUDGET 2048 TOKENS
+        USING MODEL @model
+        INTO @improved
+    CALL write_file(f'{@log_dir}/target/{@lang}/code.md', @improved) INTO NONE
+    LOGGING f'[03_improve_code] done | output_len={len(@improved)}' LEVEL INFO
+    RETURN @improved
+EXCEPTION
+    WHEN ModelUnavailable THEN
+        LOGGING '[03_improve_code] model unavailable' LEVEL ERROR
+        RETURN '[ERROR] Improvement model unavailable.' WITH status = 'failed'
+END

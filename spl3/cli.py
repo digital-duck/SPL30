@@ -34,10 +34,19 @@ def main(ctx, hub, verbose):
 @main.command()
 @click.argument("spl_file")
 @click.option("--adapter", default="ollama", show_default=True)
-@click.option("--model", default="gemma3", show_default=True)
+@click.option("--model", "-m", default=None, show_default=True)
 @click.option("--param", "-p", multiple=True, help="key=value workflow INPUT params")
+@click.option(
+    "--log-prompts", default=None, metavar="DIR",
+    help=(
+        "Write each fully-assembled prompt to DIR/<fn>_NNN.md before it is sent "
+        "to the model. Each file contains a metadata header (model, max_tokens, "
+        "temperature) followed by the raw prompt body — ready to paste into "
+        "Google AI Studio, HuggingFace Chat, or any other playground."
+    ),
+)
 @click.pass_context
-def run(ctx, spl_file, adapter, model, param):
+def run(ctx, spl_file, adapter, model, param, log_prompts):
     """Run an orchestrator .spl workflow with workflow composition."""
     from pathlib import Path
     from spl3.registry import LocalRegistry
@@ -57,10 +66,10 @@ def run(ctx, spl_file, adapter, model, param):
 
     hub_url = ctx.obj.get("hub")
 
-    asyncio.run(_run_workflow(path, adapter, model, params, hub_url))
+    asyncio.run(_run_workflow(path, adapter, model, params, hub_url, log_prompts))
 
 
-async def _run_workflow(path, adapter_name, model, params, hub_url):
+async def _run_workflow(path, adapter_name, model, params, hub_url, log_prompts=None):
     from spl3.registry import LocalRegistry, FederatedRegistry
     from spl3.composer import WorkflowComposer
 
@@ -85,15 +94,31 @@ async def _run_workflow(path, adapter_name, model, params, hub_url):
         click.echo(f"Hub registry: {hub_url}")
 
     # Build executor and attach composer for CALL workflow_name() dispatch
-    adapter = get_adapter(adapter_name, model=model)
+    adapter_kwargs = {"model": model} if model else {}
+    adapter = get_adapter(adapter_name, **adapter_kwargs)
     executor = Executor(adapter=adapter)
     executor.composer = WorkflowComposer(registry, executor)
+    if log_prompts:
+        executor.prompt_log_dir = log_prompts
+        click.echo(f"Prompt logging → {log_prompts}/")
 
     # Find the top-level workflow in the file (last defined, or named 'main')
     from spl3._loader import load_workflows_from_file
     defns = load_workflows_from_file(path)
     if not defns:
         raise click.ClickException(f"No WORKFLOW definitions found in {path}")
+
+    # Register CREATE FUNCTION definitions so prompt templates are expanded
+    # (execute_workflow is called directly, bypassing executor.run() which
+    # normally does this registration)
+    from spl.lexer import Lexer
+    from spl.ast_nodes import CreateFunctionStatement
+    from spl3.parser import SPL3Parser
+    _tokens = Lexer(path.read_text(encoding="utf-8")).tokenize()
+    _program = SPL3Parser(_tokens).parse()
+    for _stmt in _program.statements:
+        if isinstance(_stmt, CreateFunctionStatement):
+            executor.functions.register(_stmt)
 
     # Prefer a workflow named after the file stem, or take the last one
     stem = path.stem.replace("-", "_")
@@ -226,7 +251,7 @@ def peers_add(ctx, peer_url):
 @main.command("test")
 @click.argument("spl_file_or_dir")
 @click.option("--adapter", default="ollama", show_default=True)
-@click.option("--model", default="gemma3", show_default=True)
+@click.option("--model", "-m", default=None, show_default=True)
 @click.option("--verbose", "-v", is_flag=True)
 @click.pass_context
 def cmd_test(ctx, spl_file_or_dir, adapter, model, verbose):
@@ -269,7 +294,8 @@ async def _run_tests(spl_files, adapter_name, model, verbose):
     except ImportError:
         raise click.ClickException("spl-llm 2.0 not installed: pip install spl-llm>=2.0.0")
 
-    adapter = get_adapter(adapter_name, model=model)
+    adapter_kwargs = {"model": model} if model else {}
+    adapter = get_adapter(adapter_name, **adapter_kwargs)
     executor = Executor(adapter=adapter)
 
     total = passed = failed = skipped = 0

@@ -5,8 +5,10 @@ Only WORKFLOW statements are registered; PROMPT statements, top-level
 expressions, and IMPORT statements are handled transparently.
 
 IMPORT resolution:
-  When an IMPORT 'file.spl' statement is encountered, the referenced file
-  is loaded recursively.  Circular imports are detected by tracking the
+  When an IMPORT 'file.spl' (or IMPORT 'file') statement is encountered,
+  the referenced file is loaded recursively.  The '.spl' extension is
+  optional — if the given path does not exist and has no suffix, '.spl' is
+  appended automatically.  Circular imports are detected by tracking the
   set of files currently being loaded.
 """
 
@@ -58,8 +60,12 @@ def load_workflows_from_file(
 
     for stmt in program.statements:
         if isinstance(stmt, ImportStatement):
-            # Resolve import path relative to the importing file's directory
+            # Resolve import path relative to the importing file's directory.
+            # If the path has no suffix (e.g. IMPORT 'generate_code'), append
+            # '.spl' automatically so the extension is optional in source.
             import_path = (path.parent / stmt.path).resolve()
+            if not import_path.exists() and not import_path.suffix:
+                import_path = import_path.with_suffix(".spl")
             if not import_path.exists():
                 _log.error("IMPORT: file not found: %s (from %s)", import_path, path)
                 continue

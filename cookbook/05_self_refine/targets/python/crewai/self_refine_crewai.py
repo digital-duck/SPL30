@@ -7,17 +7,16 @@ SPL is implemented explicitly in Python.
 
 Usage:
     pip install crewai langchain-ollama
-    python cookbook/05_self_refine/self_refine_crewai.py \\
+    python cookbook/05_self_refine/targets/python/crewai/self_refine_crewai.py \\
         --task "Write a haiku about coding"
-    python cookbook/05_self_refine/self_refine_crewai.py \\
-        --task "Explain recursion in one paragraph" --max-iterations 3 --model llama3.2
+    python cookbook/05_self_refine/targets/python/crewai/self_refine_crewai.py \\
+        --task "Explain recursion in one paragraph" --max-iterations 3
 """
 
 import click
 from pathlib import Path
 
 from crewai import Agent, Crew, Process, Task
-from langchain_ollama import ChatOllama
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -35,29 +34,32 @@ def _run_task(agent: Agent, description: str, expected_output: str) -> str:
 
 # ── Main runner ───────────────────────────────────────────────────────────────
 
-def run(task: str, max_iterations: int, model: str, log_dir: str) -> str:
-    # Standardize to the 'ollama/' prefix for more robust local model support
-    # and to avoid Pydantic validation errors in newer CrewAI versions.
-    llm = f"ollama/{model}"
+def run(task: str, max_iterations: int, writer_model: str, critic_model: str, log_dir: str) -> str:
+    writer_llm = f"ollama/{writer_model}"
+    critic_llm = f"ollama/{critic_model}"
 
     # SPL: GENERATE draft(@task) via Writer
     writer = Agent(
-        role="Expert Writer",
-        goal="Produce high-quality written content and improve it based on feedback.",
-        backstory="You are a skilled writer who crafts clear, accurate, well-structured content.",
-        llm=llm,
+        role="Professional Writer",
+        goal="Write a comprehensive article and improve it based on feedback.",
+        backstory=(
+            "You are a professional writer. You write comprehensive articles on given topics. "
+            "Output only the article — no preamble, no notes after."
+        ),
+        llm=writer_llm,
         verbose=False,
     )
-    # SPL: GENERATE critique(@current) via Critic + EVALUATE @feedback
+    # SPL: GENERATE critique(@current) via Critic + EVALUATE @feedback WHEN contains('[APPROVED]')
     critic = Agent(
-        role="Strict Critic",
-        goal="Evaluate written content and give actionable feedback.",
+        role="Professional Editor",
+        goal="Critique articles and output actionable improvements or [APPROVED].",
         backstory=(
-            "You are a strict critic. "
-            "Reply with exactly 'satisfactory' if the content meets the bar, "
-            "otherwise give specific improvement feedback."
+            "You are a professional editor. The article may have meta-commentary or questions "
+            "appended at the end — ignore those, critique only the article body. "
+            "If the article needs no further improvement, reply with exactly: [APPROVED]. "
+            "Otherwise output a numbered list of specific, actionable improvements. Nothing else."
         ),
-        llm=llm,
+        llm=critic_llm,
         verbose=False,
     )
 
@@ -65,46 +67,55 @@ def run(task: str, max_iterations: int, model: str, log_dir: str) -> str:
     print("Generating initial draft ...")
     current = _run_task(
         writer,
-        description=f"Complete this task thoroughly and well:\n\n{task}",
-        expected_output="A well-written response to the task.",
+        description=(
+            f"Write a comprehensive article on the topic below.\n"
+            f"Output only the article — no preamble, no notes after.\n\n"
+            f"Topic: {task}"
+        ),
+        expected_output="A comprehensive article on the topic with no preamble or notes.",
     )
     _write(f"{log_dir}/draft_0.md", current)
+    print("Initial draft ready")
 
     # WHILE @iteration < @max_iterations DO
     for iteration in range(max_iterations):
-        print(f"Iteration {iteration} | critiquing ...")
+        print(f"\nIteration {iteration} | critiquing ...")
         # GENERATE critique(@current) INTO @feedback
         feedback = _run_task(
             critic,
             description=(
-                f"Review this draft:\n\n{current}\n\n"
-                "Reply 'satisfactory' if it meets the bar, otherwise give specific feedback."
+                f"ARTICLE:\n{current}\n\n"
+                "IMPROVEMENTS:\n1."
             ),
-            expected_output="Either 'satisfactory' or specific improvement feedback.",
+            expected_output="Either '[APPROVED]' or a numbered list of specific, actionable improvements.",
         )
         _write(f"{log_dir}/feedback_{iteration}.md", feedback)
 
-        # EVALUATE @feedback WHEN 'satisfactory' THEN COMMIT
-        if "satisfactory" in feedback.lower():
-            print(f"Satisfactory at iteration {iteration}")
-            break
+        # EVALUATE @feedback WHEN contains('[APPROVED]') THEN
+        if "[APPROVED]" in feedback:
+            print(f"Approved at iteration {iteration}")
+            _write(f"{log_dir}/final.md", current)
+            return current
 
         print(f"Iteration {iteration} | refining ...")
-        # GENERATE refined(@current, @feedback) INTO @current
+        # GENERATE refined(@task, @current, @feedback) INTO @current
         current = _run_task(
             writer,
             description=(
-                f"Improve this draft based on the feedback.\n\n"
-                f"Draft:\n{current}\n\nFeedback:\n{feedback}"
+                f"Rewrite the draft below incorporating the feedback.\n"
+                f"Stay true to the original topic: {task}\n"
+                f"Output only the rewritten article — no preamble, no notes after.\n\n"
+                f"DRAFT:\n```\n{current}\n```\n\n"
+                f"FEEDBACK:\n```\n{feedback}\n```"
             ),
-            expected_output="An improved version of the draft.",
+            expected_output="The rewritten article with no preamble or notes.",
         )
         _write(f"{log_dir}/draft_{iteration + 1}.md", current)
+        print(f"Refined | iteration={iteration + 1}")
     else:
         # LOGGING 'Max iterations reached' LEVEL WARN
-        print(f"Max iterations reached | iterations={max_iterations}")
+        print(f"\nMax iterations reached | iterations={max_iterations}")
 
-    # COMMIT @current
     _write(f"{log_dir}/final.md", current)
     return current
 
@@ -113,11 +124,12 @@ def run(task: str, max_iterations: int, model: str, log_dir: str) -> str:
 
 @click.command()
 @click.option("--task",           required=True,   help="Task for the writer")
-@click.option("--max-iterations", default=5,       show_default=True, type=int)
-@click.option("--model",          default="gemma3",show_default=True)
-@click.option("--log-dir",        default="cookbook/05_self_refine/logs", show_default=True)
-def main(task: str, max_iterations: int, model: str, log_dir: str):
-    result = run(task, max_iterations, model, log_dir)
+@click.option("--max-iterations", default=3,       show_default=True, type=int)
+@click.option("--writer-model",   default="llama3.2", show_default=True, help="Ollama model for draft + refine")
+@click.option("--critic-model",   default="llama3.2", show_default=True, help="Ollama model for critique")
+@click.option("--log-dir",        default="cookbook/05_self_refine/logs-crewai", show_default=True)
+def main(task: str, max_iterations: int, writer_model: str, critic_model: str, log_dir: str):
+    result = run(task, max_iterations, writer_model, critic_model, log_dir)
     print("\n" + "=" * 60)
     print(result)
 
