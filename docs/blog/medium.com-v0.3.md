@@ -321,7 +321,7 @@ A **developer in a garage** can build and deploy AI-powered applications without
 
 None of this requires a breakthrough. It requires Ollama, a model called Gemma 4 that is free to download today, and hardware you can buy on Amazon for $500.
 
-One honest caveat on throughput: on CPU-only hardware, a full self-refine loop takes several minutes per task. For high-volume use cases, a consumer GPU (an NVIDIA RTX 3060 runs around $250) reduces generation time by 5–10×, bringing single-pass responses to seconds. The $500 mini-PC is the entry point — not the optimal configuration. The vision is real; the timeline depends on your hardware budget.
+One honest caveat on throughput: on CPU-only hardware, a full self-refine loop takes several minutes per task. For high-volume use cases, a consumer GPU (an NVIDIA RTX 3060 runs around $250) reduces generation time by 5–10×, bringing single-pass responses to seconds. The $500 mini-PC is the entry point — not the optimal configuration. The vision is real; the latency or speed of inference depends on your hardware budget.
 
 ---
 
