@@ -41,7 +41,6 @@ Prerequisites check
 
 from __future__ import annotations
 
-import argparse
 import json
 import os
 import subprocess
@@ -49,6 +48,8 @@ import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
+
+import click
 
 COOKBOOK_DIR = Path(__file__).resolve().parent
 REPO_ROOT    = COOKBOOK_DIR.parent
@@ -243,74 +244,69 @@ def print_catalog(recipes: list[dict]) -> None:
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
-def main() -> None:
-    p = argparse.ArgumentParser(
-        description="SPL 3.0 Cookbook batch runner",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-    p.add_argument("command", nargs="?", default="run",
-                   choices=["run", "list", "catalog", "check"],
-                   help="run (default) | list | catalog | check")
-    p.add_argument("--ids",      help="Comma-separated recipe IDs or ranges (e.g. 50,52-54)")
-    p.add_argument("--tier",     help="Comma-separated tier numbers to include (1=Ollama, 2=OpenAI, 3=OpenRouter, 4=all keys)")
-    p.add_argument("--category", help="Filter by category (e.g. multimodal)")
-    p.add_argument("--status",   help="Filter by approval status (new|approved|wip)")
-    p.add_argument("--all",      action="store_true", help="Include inactive recipes")
-    p.add_argument("--workers",  type=int, default=1,
-                   help="Parallel workers (default 1 = sequential)")
-    args = p.parse_args()
-
+@click.command()
+@click.argument("command", default="run",
+                type=click.Choice(["run", "list", "catalog", "check"]))
+@click.option("--ids",      default=None, help="Comma-separated recipe IDs or ranges (e.g. 50,52-54)")
+@click.option("--tier",     default=None, help="Comma-separated tier numbers (1=Ollama, 2=OpenAI, 3=OpenRouter)")
+@click.option("--category", default=None, help="Filter by category (e.g. multimodal)")
+@click.option("--status",   default=None, help="Filter by approval status (new|approved|wip)")
+@click.option("--all",      "include_all", is_flag=True, help="Include inactive recipes")
+@click.option("--workers",  default=1, show_default=True, type=int,
+              help="Parallel workers (1 = sequential)")
+def main(command, ids, tier, category, status, include_all, workers) -> None:
+    """SPL 3.0 Cookbook batch runner."""
     recipes  = load_catalog()
-    id_set   = parse_id_filter(args.ids)    if args.ids   else set()
-    tier_set = parse_tier_filter(args.tier) if args.tier  else set()
+    id_set   = parse_id_filter(ids)    if ids   else set()
+    tier_set = parse_tier_filter(tier) if tier  else set()
 
     filtered = apply_filters(
         recipes,
-        category=args.category or "",
-        status=args.status or "",
+        category=category or "",
+        status=status or "",
         tiers=tier_set,
         ids=id_set,
-        include_inactive=args.all or bool(id_set) or bool(tier_set),
+        include_inactive=include_all or bool(id_set) or bool(tier_set),
     )
 
-    if args.command == "list":
+    if command == "list":
         print_list(filtered)
-        print(f"\n{len(filtered)} recipe(s) shown")
+        click.echo(f"\n{len(filtered)} recipe(s) shown")
         return
 
-    if args.command == "catalog":
+    if command == "catalog":
         print_catalog(filtered)
         return
 
-    if args.command == "check":
-        print(f"\nChecking prerequisites for {len(filtered)} recipe(s)...\n")
+    if command == "check":
+        click.echo(f"\nChecking prerequisites for {len(filtered)} recipe(s)...\n")
         ok, issues = check_prerequisites(filtered)
         if issues:
-            print("\nIssues found:")
+            click.echo("\nIssues found:")
             for issue in issues:
-                print(issue)
+                click.echo(issue)
             sys.exit(1)
         else:
-            print("\nAll prerequisites satisfied.")
+            click.echo("\nAll prerequisites satisfied.")
         return
 
     # ── run ──────────────────────────────────────────────────────────────────
     if not filtered:
-        print("No recipes match the filter. Use --all to include inactive recipes.")
+        click.echo("No recipes match the filter. Use --all to include inactive recipes.")
         sys.exit(0)
 
     ts      = datetime.now().strftime("%Y%m%d_%H%M%S")
     log_dir = COOKBOOK_DIR / "logs"
     log_dir.mkdir(exist_ok=True)
 
-    print(f"\n{'='*60}")
-    print(f"SPL 3.0 Cookbook — {len(filtered)} recipe(s)  [{ts}]")
-    print(f"{'='*60}\n")
+    click.echo(f"\n{'='*60}")
+    click.echo(f"SPL 3.0 Cookbook — {len(filtered)} recipe(s)  [{ts}]")
+    click.echo(f"{'='*60}\n")
 
     results: list[dict] = []
 
-    if args.workers > 1:
-        with ThreadPoolExecutor(max_workers=args.workers) as pool:
+    if workers > 1:
+        with ThreadPoolExecutor(max_workers=workers) as pool:
             futures = {
                 pool.submit(
                     run_recipe_parallel,
@@ -325,24 +321,23 @@ def main() -> None:
             rid, name = r["id"], r["name"]
             tier_label = TIER_LABELS.get(r.get("tier", 0), "")
             log_path = log_dir / f"{r['log']}_{ts}.md"
-            print(f"[{rid}] {name}  ({tier_label})")
+            click.echo(f"[{rid}] {name}  ({tier_label})")
             ok, elapsed = run_recipe(r, log_path)
-            status = "SUCCESS" if ok else "FAILED"
-            print(f"[{rid}] {status}  ({elapsed:.1f}s)  log: {log_path.name}\n")
+            status_str = "SUCCESS" if ok else "FAILED"
+            click.echo(f"[{rid}] {status_str}  ({elapsed:.1f}s)  log: {log_path.name}\n")
             results.append({"id": rid, "name": name, "ok": ok, "elapsed": elapsed})
 
-    # ── Summary ───────────────────────────────────────────────────────────────
     passed = [r for r in results if r["ok"]]
     failed = [r for r in results if not r["ok"]]
     total_s = sum(r["elapsed"] for r in results)
 
-    print(f"\n{'='*60}")
-    print(f"Summary: {len(passed)}/{len(results)} passed  ({total_s:.1f}s total)")
+    click.echo(f"\n{'='*60}")
+    click.echo(f"Summary: {len(passed)}/{len(results)} passed  ({total_s:.1f}s total)")
     if failed:
-        print(f"\nFailed:")
+        click.echo(f"\nFailed:")
         for r in failed:
-            print(f"  [{r['id']}] {r['name']}")
-    print(f"{'='*60}\n")
+            click.echo(f"  [{r['id']}] {r['name']}")
+    click.echo(f"{'='*60}\n")
 
     sys.exit(0 if not failed else 1)
 

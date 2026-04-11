@@ -13,7 +13,7 @@ Usage:
         --task "Explain recursion in one paragraph" --max-iterations 3 --model llama3.2
 """
 
-import argparse
+import click
 from pathlib import Path
 
 from crewai import Agent, Crew, Process, Task
@@ -111,15 +111,13 @@ def run(task: str, max_iterations: int, model: str, log_dir: str) -> str:
 
 # ── Entry point  (SPL: built into CLI — `spl run ...`) ────────────────────────
 
-def main():
-    p = argparse.ArgumentParser(description="Self-refine — CrewAI edition")
-    p.add_argument("--task",           required=True)
-    p.add_argument("--max-iterations", type=int, default=5)
-    p.add_argument("--model",          default="gemma3")
-    p.add_argument("--log-dir",        default="cookbook/05_self_refine/logs")
-    args = p.parse_args()
-
-    result = run(args.task, args.max_iterations, args.model, args.log_dir)
+@click.command()
+@click.option("--task",           required=True,   help="Task for the writer")
+@click.option("--max-iterations", default=5,       show_default=True, type=int)
+@click.option("--model",          default="gemma3",show_default=True)
+@click.option("--log-dir",        default="cookbook/05_self_refine/logs", show_default=True)
+def main(task: str, max_iterations: int, model: str, log_dir: str):
+    result = run(task, max_iterations, model, log_dir)
     print("\n" + "=" * 60)
     print(result)
 

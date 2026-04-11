@@ -45,7 +45,6 @@ Usage
 
 from __future__ import annotations
 
-import argparse
 import asyncio
 import os
 import subprocess
@@ -53,6 +52,8 @@ import sys
 import time
 import platform
 from pathlib import Path
+
+import click
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_REPO_ROOT))
@@ -227,69 +228,61 @@ async def run(
     return transcript, response, audio_out
 
 
-def main() -> None:
-    p = argparse.ArgumentParser(
-        description="Recipe 55 — Voice Dialogue (AUDIO+TEXT → TEXT+AUDIO)",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-    p.add_argument("--audio",    required=True, help="Path to audio question (WAV/MP3)")
-    p.add_argument("--context",  default="", help="Optional text context for the response")
-    p.add_argument("--persona",  default="a helpful assistant",
-                   help='LLM persona (default: "a helpful assistant")')
+@click.command()
+@click.option("--audio",       required=True, help="Path to audio question (WAV/MP3)")
+@click.option("--context",     default="", help="Optional text context for the response")
+@click.option("--persona",     default="a helpful assistant", show_default=True,
+              help="LLM persona description")
+@click.option("--asr-model",   default="liquid/lfm-2.5-1.2b-instruct:free", show_default=True,
+              help="Transcription model")
+@click.option("--asr-backend", default="openrouter", show_default=True,
+              type=click.Choice(["openrouter", "ollama"]))
+@click.option("--llm-model",   default="gemma4:e4b", show_default=True,
+              help="Response LLM via Ollama")
+@click.option("--tts-voice",   default="alloy", show_default=True, help="TTS voice")
+@click.option("--tts-model",   default="tts-1", show_default=True,
+              type=click.Choice(["tts-1", "tts-1-hd", "gpt-4o-mini-tts"]))
+@click.option("--tts-backend", default="openai", show_default=True,
+              type=click.Choice(["openai", "system"]))
+@click.option("--to-wav",      is_flag=True, help="Convert audio to WAV before ASR (requires ffmpeg)")
+@click.option("--output-dir",  default="cookbook/55_voice_dialogue/outputs", show_default=True)
+def main(audio, context, persona, asr_model, asr_backend, llm_model,
+         tts_voice, tts_model, tts_backend, to_wav, output_dir) -> None:
+    """Recipe 55 — Voice Dialogue (AUDIO+TEXT → TEXT+AUDIO)."""
+    if asr_backend == "openrouter" and not os.environ.get("OPENROUTER_API_KEY"):
+        raise click.UsageError(
+            "OPENROUTER_API_KEY not set.\n"
+            "  export OPENROUTER_API_KEY=sk-or-...\n"
+            "  Or use --asr-backend ollama --asr-model lfm-2.5"
+        )
 
-    p.add_argument("--asr-model",   default="liquid/lfm-2.5-1.2b-instruct:free",
-                   dest="asr_model",
-                   help="Transcription model (default: LFM-2.5 on OpenRouter)")
-    p.add_argument("--asr-backend", default="openrouter",
-                   choices=["openrouter", "ollama"], dest="asr_backend",
-                   help="ASR backend (default: openrouter)")
-    p.add_argument("--llm-model",   default="gemma4:e4b", dest="llm_model",
-                   help="Response LLM, Ollama (default: gemma4:e4b)")
-    p.add_argument("--tts-voice",   default="alloy", dest="tts_voice",
-                   help="TTS voice (default: alloy)")
-    p.add_argument("--tts-model",   default="tts-1", dest="tts_model",
-                   choices=["tts-1", "tts-1-hd", "gpt-4o-mini-tts"])
-    p.add_argument("--tts-backend", default="openai", dest="tts_backend",
-                   choices=["openai", "system"])
-    p.add_argument("--to-wav",   action="store_true", dest="to_wav",
-                   help="Convert audio to WAV before ASR (requires pydub+ffmpeg)")
-    p.add_argument("--output-dir", default="cookbook/55_voice_dialogue/outputs",
-                   dest="output_dir")
-    args = p.parse_args()
-
-    if args.asr_backend == "openrouter" and not os.environ.get("OPENROUTER_API_KEY"):
-        print("[voice_dialogue] WARNING: OPENROUTER_API_KEY not set.\n"
-              "  export OPENROUTER_API_KEY=sk-or-...\n"
-              "  Or use --asr-backend ollama --asr-model lfm-2.5")
-        sys.exit(1)
-
-    output_dir = Path(args.output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
+    out_dir = Path(output_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
 
     transcript, response, audio_out = asyncio.run(run(
-        audio=args.audio,
-        context=args.context,
-        persona=args.persona,
-        asr_model=args.asr_model,
-        asr_backend=args.asr_backend,
-        llm_model=args.llm_model,
-        tts_voice=args.tts_voice,
-        tts_model=args.tts_model,
-        tts_backend=args.tts_backend,
-        to_wav=args.to_wav,
-        output_dir=output_dir,
+        audio=audio,
+        context=context,
+        persona=persona,
+        asr_model=asr_model,
+        asr_backend=asr_backend,
+        llm_model=llm_model,
+        tts_voice=tts_voice,
+        tts_model=tts_model,
+        tts_backend=tts_backend,
+        to_wav=to_wav,
+        output_dir=out_dir,
     ))
 
-    print()
-    print("── Transcript ───────────────────────────────────────────────────────")
-    print(transcript)
-    print()
-    print("── Text response ────────────────────────────────────────────────────")
-    print(response)
-    print()
-    print("── Audio response ───────────────────────────────────────────────────")
-    print(f"Saved: {audio_out}")
-    print("─────────────────────────────────────────────────────────────────────")
+    click.echo()
+    click.echo("── Transcript ───────────────────────────────────────────────────────")
+    click.echo(transcript)
+    click.echo()
+    click.echo("── Text response ────────────────────────────────────────────────────")
+    click.echo(response)
+    click.echo()
+    click.echo("── Audio response ───────────────────────────────────────────────────")
+    click.echo(f"Saved: {audio_out}")
+    click.echo("─────────────────────────────────────────────────────────────────────")
 
 
 if __name__ == "__main__":

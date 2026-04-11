@@ -35,13 +35,14 @@ Usage
 
 from __future__ import annotations
 
-import argparse
 import asyncio
 import base64
 import os
 import sys
 import time
 from pathlib import Path
+
+import click
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_REPO_ROOT))
@@ -172,48 +173,45 @@ async def run(
     )
 
 
-def main() -> None:
-    p = argparse.ArgumentParser(
-        description="Recipe 52 — Text to Image (SPL 3.0 multimodal output)",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-    p.add_argument("--prompt",  required=True, help="Text prompt to generate image from")
-    p.add_argument("--style",   default="photorealistic",
-                   help='Visual style hint for prompt enhancer (default: "photorealistic")')
-    p.add_argument("--aspect",  default="square", choices=["square", "landscape", "portrait"])
-    p.add_argument("--quality", default="standard", choices=["standard", "hd"],
-                   help="DALL-E 3 quality (default: standard; hd costs more)")
-    p.add_argument("--dalle-style", default="natural", choices=["natural", "vivid"],
-                   dest="dalle_style",
-                   help="DALL-E 3 style: natural (realistic) or vivid (dramatic)")
-    p.add_argument("--enhance", action="store_true",
-                   help="Enhance prompt via Gemma4 / Ollama before generating")
-    p.add_argument("--model",   default="dall-e-3", choices=["dall-e-3", "dall-e-2"])
-    p.add_argument("--llm-model", default="gemma4:e4b", dest="llm_model",
-                   help="Ollama model for prompt enhancement (default: gemma4:e4b)")
-    p.add_argument("--output-dir", default="cookbook/52_text_to_image/outputs",
-                   dest="output_dir")
-    args = p.parse_args()
-
-    output_dir = Path(args.output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
+@click.command()
+@click.option("--prompt",      required=True, help="Text prompt to generate image from")
+@click.option("--style",       default="photorealistic", show_default=True,
+              help="Visual style hint for prompt enhancer")
+@click.option("--aspect",      default="square", show_default=True,
+              type=click.Choice(["square", "landscape", "portrait"]))
+@click.option("--quality",     default="standard", show_default=True,
+              type=click.Choice(["standard", "hd"]),
+              help="DALL-E 3 quality (hd costs more)")
+@click.option("--dalle-style", default="natural", show_default=True,
+              type=click.Choice(["natural", "vivid"]),
+              help="natural (realistic) | vivid (dramatic)")
+@click.option("--enhance",     is_flag=True, help="Enhance prompt via Gemma4/Ollama first")
+@click.option("--model",       default="dall-e-3", show_default=True,
+              type=click.Choice(["dall-e-3", "dall-e-2"]))
+@click.option("--llm-model",   default="gemma4:e4b", show_default=True,
+              help="Ollama model for prompt enhancement")
+@click.option("--output-dir",  default="cookbook/52_text_to_image/outputs", show_default=True)
+def main(prompt, style, aspect, quality, dalle_style, enhance, model, llm_model, output_dir) -> None:
+    """Recipe 52 — Text to Image (SPL 3.0 multimodal output)."""
+    out_dir = Path(output_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
 
     out_path = asyncio.run(run(
-        prompt=args.prompt,
-        style=args.style,
-        aspect=args.aspect,
-        quality=args.quality,
-        dalle_style=args.dalle_style,
-        enhance=args.enhance,
-        model=args.model,
-        llm_model=args.llm_model,
-        output_dir=output_dir,
+        prompt=prompt,
+        style=style,
+        aspect=aspect,
+        quality=quality,
+        dalle_style=dalle_style,
+        enhance=enhance,
+        model=model,
+        llm_model=llm_model,
+        output_dir=out_dir,
     ))
 
-    print()
-    print("── Output ───────────────────────────────────────────────────────────")
-    print(f"Image saved: {out_path}")
-    print("─────────────────────────────────────────────────────────────────────")
+    click.echo()
+    click.echo("── Output ───────────────────────────────────────────────────────────")
+    click.echo(f"Image saved: {out_path}")
+    click.echo("─────────────────────────────────────────────────────────────────────")
 
 
 if __name__ == "__main__":

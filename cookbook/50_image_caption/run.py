@@ -47,11 +47,12 @@ Usage
 
 from __future__ import annotations
 
-import argparse
 import asyncio
 import sys
 import time
 from pathlib import Path
+
+import click
 
 # ── Path setup (run from repo root or directly) ───────────────────────────────
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -136,43 +137,36 @@ async def run(
         await adapter.close()
 
 
-def main() -> None:
-    p = argparse.ArgumentParser(
-        description="Recipe 50 — Image Caption (SPL 3.0 multimodal)",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-    p.add_argument("--image",    required=True,
-                   help="Local file path or public HTTPS URL")
-    p.add_argument("--question", default="What is in this image? Describe it in detail.",
-                   help="Question to ask about the image (caption mode only)")
-    p.add_argument("--mode",     default="caption",
-                   choices=["caption", "detailed", "ocr"],
-                   help="caption (Q&A) | detailed (full description) | ocr (text extraction)")
-    p.add_argument("--model",    default="gemma4",
-                   help="Model name (default: gemma4)")
-    p.add_argument("--backend",  default="ollama",
-                   choices=["ollama", "openrouter"],
-                   help="Backend: ollama (local) or openrouter (cloud)")
-    p.add_argument("--max-dim",  type=int, default=1024, dest="max_dim",
-                   help="Resize longest edge to N pixels before encoding (default 1024)")
-    p.add_argument("--max-tokens", type=int, default=1024, dest="max_tokens",
-                   help="Max output tokens (default 1024)")
-    args = p.parse_args()
-
+@click.command()
+@click.option("--image",      required=True, help="Local file path or public HTTPS URL")
+@click.option("--question",   default="What is in this image? Describe it in detail.",
+              show_default=True, help="Question to ask (caption mode only)")
+@click.option("--mode",       default="caption", show_default=True,
+              type=click.Choice(["caption", "detailed", "ocr"]),
+              help="caption (Q&A) | detailed (full description) | ocr (text extraction)")
+@click.option("--model",      default="gemma4", show_default=True, help="Model name")
+@click.option("--backend",    default="ollama", show_default=True,
+              type=click.Choice(["ollama", "openrouter"]))
+@click.option("--max-dim",    default=1024, show_default=True, type=int,
+              help="Resize longest edge to N pixels before encoding")
+@click.option("--max-tokens", default=1024, show_default=True, type=int,
+              help="Max output tokens")
+def main(image, question, mode, model, backend, max_dim, max_tokens) -> None:
+    """Recipe 50 — Image Caption (SPL 3.0 multimodal)."""
     caption = asyncio.run(run(
-        image=args.image,
-        question=args.question,
-        mode=args.mode,
-        model=args.model,
-        backend=args.backend,
-        max_dim=args.max_dim,
-        max_tokens=args.max_tokens,
+        image=image,
+        question=question,
+        mode=mode,
+        model=model,
+        backend=backend,
+        max_dim=max_dim,
+        max_tokens=max_tokens,
     ))
 
-    print()
-    print("── Result ───────────────────────────────────────────────────────────")
-    print(caption)
-    print("─────────────────────────────────────────────────────────────────────")
+    click.echo()
+    click.echo("── Result ───────────────────────────────────────────────────────────")
+    click.echo(caption)
+    click.echo("─────────────────────────────────────────────────────────────────────")
 
 
 if __name__ == "__main__":

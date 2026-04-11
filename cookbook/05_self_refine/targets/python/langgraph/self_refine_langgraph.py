@@ -11,9 +11,10 @@ Usage:
         --task "Explain recursion in one paragraph" --max-iterations 3 --model llama3.2
 """
 
-import argparse
 from pathlib import Path
 from typing import TypedDict
+
+import click
 
 from langchain_ollama import ChatOllama
 from langgraph.graph import END, StateGraph
@@ -136,19 +137,17 @@ def build_graph():
 
 # ── Entry point  (SPL: built into CLI — `spl run ...`) ────────────────────────
 
-def main():
-    p = argparse.ArgumentParser(description="Self-refine — LangGraph edition")
-    p.add_argument("--task",           required=True)
-    p.add_argument("--max-iterations", type=int, default=5)
-    p.add_argument("--model",          default="gemma3")
-    p.add_argument("--log-dir",        default="cookbook/05_self_refine/logs")
-    args = p.parse_args()
-
+@click.command()
+@click.option("--task",           required=True,   help="Task for the writer")
+@click.option("--max-iterations", default=5,       show_default=True, type=int)
+@click.option("--model",          default="gemma3",show_default=True)
+@click.option("--log-dir",        default="cookbook/05_self_refine/logs", show_default=True)
+def main(task: str, max_iterations: int, model: str, log_dir: str):
     result = build_graph().invoke({
-        "task":           args.task,
-        "max_iterations": args.max_iterations,
-        "model":          args.model,
-        "log_dir":        args.log_dir,
+        "task":           task,
+        "max_iterations": max_iterations,
+        "model":          model,
+        "log_dir":        log_dir,
         "current":        "",
         "feedback":       "",
         "iteration":      0,

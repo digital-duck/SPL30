@@ -46,13 +46,14 @@ Usage
 
 from __future__ import annotations
 
-import argparse
 import asyncio
 import os
 import subprocess
 import sys
 import time
 from pathlib import Path
+
+import click
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_REPO_ROOT))
@@ -196,58 +197,53 @@ async def run(
         return synthesise_system(script, output_dir)
 
 
-def main() -> None:
-    p = argparse.ArgumentParser(
-        description="Recipe 53 — Text to Speech (SPL 3.0 multimodal output)",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-    src = p.add_mutually_exclusive_group(required=True)
-    src.add_argument("--text", help="Text to speak")
-    src.add_argument("--file", help="Read text from file")
+@click.command()
+@click.option("--text",         default=None, help="Text to speak (mutually exclusive with --file)")
+@click.option("--file",         default=None, type=click.Path(exists=True),
+              help="Read text from file (mutually exclusive with --text)")
+@click.option("--voice",        default="alloy", show_default=True,
+              help="Voice: alloy echo fable onyx nova shimmer")
+@click.option("--tone",         default="neutral", show_default=True,
+              help="Tone for script prep")
+@click.option("--model",        default="tts-1", show_default=True,
+              type=click.Choice(["tts-1", "tts-1-hd", "gpt-4o-mini-tts"]))
+@click.option("--instructions", default=None,
+              help="Speaking instructions for gpt-4o-mini-tts")
+@click.option("--prep",         is_flag=True, help="Clean/prep script via Gemma4/Ollama first")
+@click.option("--backend",      default="openai", show_default=True,
+              type=click.Choice(["openai", "system"]),
+              help="openai | system (say/espeak, no API key)")
+@click.option("--llm-model",    default="gemma4:e4b", show_default=True,
+              help="Ollama model for script prep")
+@click.option("--output-dir",   default="cookbook/53_text_to_speech/outputs", show_default=True)
+def main(text, file, voice, tone, model, instructions, prep, backend, llm_model, output_dir) -> None:
+    """Recipe 53 — Text to Speech (SPL 3.0 multimodal output)."""
+    if not text and not file:
+        raise click.UsageError("Provide either --text or --file.")
+    if text and file:
+        raise click.UsageError("--text and --file are mutually exclusive.")
 
-    p.add_argument("--voice",  default="alloy",
-                   help="Voice name (default: alloy). OpenAI: alloy echo fable onyx nova shimmer")
-    p.add_argument("--tone",   default="neutral",
-                   help='Tone for script prep (default: "neutral")')
-    p.add_argument("--model",  default="tts-1",
-                   choices=["tts-1", "tts-1-hd", "gpt-4o-mini-tts"],
-                   help="TTS model (default: tts-1)")
-    p.add_argument("--instructions", default=None,
-                   help="Speaking instructions for gpt-4o-mini-tts (e.g. 'Speak like a news anchor')")
-    p.add_argument("--prep",   action="store_true",
-                   help="Clean/prep script before TTS via Gemma4/Ollama")
-    p.add_argument("--backend", default="openai", choices=["openai", "system"],
-                   help="openai (default) or system (say/espeak, no API key)")
-    p.add_argument("--llm-model", default="gemma4:e4b", dest="llm_model",
-                   help="Ollama model for script prep (default: gemma4:e4b)")
-    p.add_argument("--output-dir", default="cookbook/53_text_to_speech/outputs",
-                   dest="output_dir")
-    args = p.parse_args()
+    content = text if text else Path(file).read_text(encoding="utf-8")
 
-    text = args.text
-    if args.file:
-        text = Path(args.file).read_text(encoding="utf-8")
-    assert text
-
-    output_dir = Path(args.output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
+    out_dir = Path(output_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
 
     out_path = asyncio.run(run(
-        text=text,
-        voice=args.voice,
-        tone=args.tone,
-        model=args.model,
-        instructions=args.instructions,
-        prep=args.prep,
-        backend=args.backend,
-        llm_model=args.llm_model,
-        output_dir=output_dir,
+        text=content,
+        voice=voice,
+        tone=tone,
+        model=model,
+        instructions=instructions,
+        prep=prep,
+        backend=backend,
+        llm_model=llm_model,
+        output_dir=out_dir,
     ))
 
-    print()
-    print("── Output ───────────────────────────────────────────────────────────")
-    print(f"Audio saved: {out_path}")
-    print("─────────────────────────────────────────────────────────────────────")
+    click.echo()
+    click.echo("── Output ───────────────────────────────────────────────────────────")
+    click.echo(f"Audio saved: {out_path}")
+    click.echo("─────────────────────────────────────────────────────────────────────")
 
 
 if __name__ == "__main__":

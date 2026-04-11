@@ -38,7 +38,6 @@ Usage
 
 from __future__ import annotations
 
-import argparse
 import asyncio
 import base64
 import json
@@ -46,6 +45,8 @@ import os
 import sys
 import time
 from pathlib import Path
+
+import click
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_REPO_ROOT))
@@ -209,51 +210,48 @@ async def run(
     return description, dalle_prompt, out_path
 
 
-def main() -> None:
-    p = argparse.ArgumentParser(
-        description="Recipe 54 — Image Restyle (IMAGE+TEXT → TEXT+IMAGE)",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-    p.add_argument("--image",    required=True, help="Source image path")
-    p.add_argument("--style",    default="watercolor painting, soft edges, pastel tones",
-                   help="Style transformation to apply")
-    p.add_argument("--preserve", default="composition, main subject, mood",
-                   help="Elements to preserve from the original")
-    p.add_argument("--aspect",   default="square", choices=["square", "landscape", "portrait"])
-    p.add_argument("--quality",  default="standard", choices=["standard", "hd"])
-    p.add_argument("--dalle-style", default="natural", choices=["natural", "vivid"],
-                   dest="dalle_style")
-    p.add_argument("--vision-model", default="gemma4:e4b", dest="vision_model",
-                   help="Ollama vision model for image analysis (default: gemma4:e4b)")
-    p.add_argument("--max-dim",  type=int, default=1024, dest="max_dim")
-    p.add_argument("--output-dir", default="cookbook/54_image_restyle/outputs",
-                   dest="output_dir")
-    args = p.parse_args()
-
-    output_dir = Path(args.output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
+@click.command()
+@click.option("--image",        required=True, help="Source image path")
+@click.option("--style",        default="watercolor painting, soft edges, pastel tones",
+              show_default=True, help="Style transformation to apply")
+@click.option("--preserve",     default="composition, main subject, mood",
+              show_default=True, help="Elements to preserve from the original")
+@click.option("--aspect",       default="square", show_default=True,
+              type=click.Choice(["square", "landscape", "portrait"]))
+@click.option("--quality",      default="standard", show_default=True,
+              type=click.Choice(["standard", "hd"]))
+@click.option("--dalle-style",  default="natural", show_default=True,
+              type=click.Choice(["natural", "vivid"]))
+@click.option("--vision-model", default="gemma4:e4b", show_default=True,
+              help="Ollama vision model for image analysis")
+@click.option("--max-dim",      default=1024, show_default=True, type=int)
+@click.option("--output-dir",   default="cookbook/54_image_restyle/outputs", show_default=True)
+def main(image, style, preserve, aspect, quality, dalle_style, vision_model, max_dim, output_dir) -> None:
+    """Recipe 54 — Image Restyle (IMAGE+TEXT → TEXT+IMAGE)."""
+    out_dir = Path(output_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
 
     description, dalle_prompt, out_path = asyncio.run(run(
-        image=args.image,
-        style=args.style,
-        preserve=args.preserve,
-        aspect=args.aspect,
-        quality=args.quality,
-        dalle_style=args.dalle_style,
-        vision_model=args.vision_model,
-        max_dim=args.max_dim,
-        output_dir=output_dir,
+        image=image,
+        style=style,
+        preserve=preserve,
+        aspect=aspect,
+        quality=quality,
+        dalle_style=dalle_style,
+        vision_model=vision_model,
+        max_dim=max_dim,
+        output_dir=out_dir,
     ))
 
-    print()
-    print("── Text output (vision analysis) ────────────────────────────────────")
+    click.echo()
+    click.echo("── Text output (vision analysis) ────────────────────────────────────")
     if description:
-        print(f"Description:   {description}")
-    print(f"DALL-E prompt: {dalle_prompt}")
-    print()
-    print("── Image output ─────────────────────────────────────────────────────")
-    print(f"Restyled image: {out_path}")
-    print("─────────────────────────────────────────────────────────────────────")
+        click.echo(f"Description:   {description}")
+    click.echo(f"DALL-E prompt: {dalle_prompt}")
+    click.echo()
+    click.echo("── Image output ─────────────────────────────────────────────────────")
+    click.echo(f"Restyled image: {out_path}")
+    click.echo("─────────────────────────────────────────────────────────────────────")
 
 
 if __name__ == "__main__":

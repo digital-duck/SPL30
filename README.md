@@ -156,6 +156,7 @@ pip install -e ".[dev]"
 
 # Register workflows with local registry
 spl register cookbook/code_pipeline/
+spl3 register cookbook/code_pipeline/
 
 # Run an orchestrator workflow
 spl run cookbook/code_pipeline/code_pipeline.spl \

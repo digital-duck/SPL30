@@ -41,12 +41,13 @@ Usage
 
 from __future__ import annotations
 
-import argparse
 import asyncio
 import os
 import sys
 import time
 from pathlib import Path
+
+import click
 
 # ── Path setup ────────────────────────────────────────────────────────────────
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -137,55 +138,43 @@ async def run(
         await adapter.close()
 
 
-def main() -> None:
-    p = argparse.ArgumentParser(
-        description="Recipe 51 — Audio Summary (SPL 3.0 multimodal)",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-    )
-    p.add_argument("--audio",   required=True,
-                   help="Path to audio file (WAV, MP3, OGG, FLAC)")
-    p.add_argument("--mode",    default="summary",
-                   choices=["summary", "transcribe", "key_points"],
-                   help="summary | transcribe | key_points")
-    p.add_argument("--style",   default="concise paragraph",
-                   help='Summary style hint (default: "concise paragraph")')
-    p.add_argument("--backend", default="openrouter",
-                   choices=["openrouter", "ollama"],
-                   help="Backend: openrouter (default, confirmed) or ollama (experimental)")
-    p.add_argument("--model",   default="",
-                   help="Override model name (default: lfm-2.5-1.2b-instruct:free for openrouter)")
-    p.add_argument("--to-wav",  action="store_true", dest="to_wav",
-                   help="Convert audio to WAV before sending (requires pydub + ffmpeg)")
-    p.add_argument("--max-tokens", type=int, default=2048, dest="max_tokens",
-                   help="Max output tokens (default 2048)")
-    args = p.parse_args()
-
-    # Default model per backend
-    model = args.model
+@click.command()
+@click.option("--audio",      required=True, help="Path to audio file (WAV, MP3, OGG, FLAC)")
+@click.option("--mode",       default="summary", show_default=True,
+              type=click.Choice(["summary", "transcribe", "key_points"]))
+@click.option("--style",      default="concise paragraph", show_default=True,
+              help="Summary style hint")
+@click.option("--backend",    default="openrouter", show_default=True,
+              type=click.Choice(["openrouter", "ollama"]),
+              help="openrouter (confirmed audio) | ollama (experimental)")
+@click.option("--model",      default="", help="Override model (default auto-selected per backend)")
+@click.option("--to-wav",     is_flag=True, help="Convert audio to WAV first (requires ffmpeg)")
+@click.option("--max-tokens", default=2048, show_default=True, type=int)
+def main(audio, mode, style, backend, model, to_wav, max_tokens) -> None:
+    """Recipe 51 — Audio Summary (SPL 3.0 multimodal)."""
     if not model:
-        model = _DEFAULT_MODEL_OPENROUTER if args.backend == "openrouter" else _DEFAULT_MODEL_OLLAMA
+        model = _DEFAULT_MODEL_OPENROUTER if backend == "openrouter" else _DEFAULT_MODEL_OLLAMA
 
-    # Remind user about API key
-    if args.backend == "openrouter" and not os.environ.get("OPENROUTER_API_KEY"):
-        print("[audio_summary] WARNING: OPENROUTER_API_KEY not set. "
-              "Export it before running:\n"
-              "  export OPENROUTER_API_KEY=sk-or-...")
-        sys.exit(1)
+    if backend == "openrouter" and not os.environ.get("OPENROUTER_API_KEY"):
+        raise click.UsageError(
+            "OPENROUTER_API_KEY not set.\n"
+            "  export OPENROUTER_API_KEY=sk-or-..."
+        )
 
     result = asyncio.run(run(
-        audio=args.audio,
-        mode=args.mode,
-        style=args.style,
+        audio=audio,
+        mode=mode,
+        style=style,
         model=model,
-        backend=args.backend,
-        to_wav=args.to_wav,
-        max_tokens=args.max_tokens,
+        backend=backend,
+        to_wav=to_wav,
+        max_tokens=max_tokens,
     ))
 
-    print()
-    print("── Result ───────────────────────────────────────────────────────────")
-    print(result)
-    print("─────────────────────────────────────────────────────────────────────")
+    click.echo()
+    click.echo("── Result ───────────────────────────────────────────────────────────")
+    click.echo(result)
+    click.echo("─────────────────────────────────────────────────────────────────────")
 
 
 if __name__ == "__main__":

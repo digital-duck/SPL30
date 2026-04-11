@@ -1,43 +1,52 @@
 -- Recipe Name: Self-Refine Pattern
 -- Iteratively improves output through critique and refinement
 
-CREATE FUNCTION draft(task TEXT) 
+-- Completion anchoring: prompt ends mid-line forcing the model to continue
+-- with article content rather than a conversational response.
+
+CREATE FUNCTION draft(task TEXT)
 RETURN TEXT
 AS $$
-You are an expert writer. Complete the following task thoroughly and well.
+You are a professional writer. Write a comprehensive article on the topic below.
+Output only the article — no preamble, no notes after.
 
-Task: {task}
-
-Write a high-quality response now.
+Topic: {task}
 $$;
 
-CREATE FUNCTION critique(current TEXT) 
+CREATE FUNCTION critique(current TEXT)
 RETURN TEXT
 AS $$
-You are a strict critic reviewing written content.
+You are a professional editor. The article below may have meta-commentary or questions
+appended at the end — ignore those, critique only the article body.
 
-If the content fully meets the bar with no meaningful improvements needed,
-reply with exactly this token and nothing else: [APPROVED]
+If the article needs no further improvement, reply with exactly: [APPROVED]
 
-Otherwise, provide specific, actionable feedback on how to improve it.
-Do NOT output [APPROVED] unless the content truly needs no further work.
+Otherwise output a numbered list of specific, actionable improvements. Nothing else.
 
-Content to review:
+ARTICLE:
 {current}
+
+IMPROVEMENTS:
+1.
+
 $$;
 
-CREATE FUNCTION refined(current TEXT, feedback TEXT) 
+CREATE FUNCTION refined(task TEXT, current TEXT, feedback TEXT)
 RETURN TEXT
 AS $$
-You are an expert writer. Improve the following draft based on the feedback.
+You are a seasoned writer. Rewrite the draft below incorporating the feedback.
+Stay true to the original topic: {task}
+Output only the rewritten article — no preamble, no notes after.
 
-Draft:
+DRAFT:
+```
 {current}
+```
 
-Feedback:
+FEEDBACK:
+```
 {feedback}
-
-Write the improved version now.
+```
 $$;
 
 -- Critique as a self-contained sub-workflow (demonstrates CALL workflow)
@@ -61,8 +70,8 @@ WORKFLOW self_refine
   INPUT:
     @task TEXT DEFAULT 'What are the benefits of meditation?',
     @output_budget INTEGER DEFAULT 2000,
-    @max_iterations INTEGER DEFAULT 5,
-    @writer_model TEXT DEFAULT 'gemma3',
+    @max_iterations INTEGER DEFAULT 3,
+    @writer_model TEXT DEFAULT 'llama3.2',
     @critic_model TEXT DEFAULT 'llama3.2',
     @log_dir TEXT DEFAULT 'cookbook/05_self_refine/logs-spl'
   OUTPUT: @result TEXT
@@ -72,15 +81,15 @@ DO
   LOGGING f'Self-refine started | max_iterations={@max_iterations} for task:\n {@task}' LEVEL INFO
 
   -- Initial draft
-  GENERATE draft(@task) WITH OUTPUT BUDGET @output_budget TOKENS 
-    USING MODEL @writer_model 
+  GENERATE draft(@task) WITH OUTPUT BUDGET @output_budget TOKENS
+    USING MODEL @writer_model
     INTO @current
   LOGGING 'Initial draft ready' LEVEL INFO
   CALL write_file(f'{@log_dir}/draft_0.md', @current) INTO NONE
 
   -- Iterative refinement loop
   WHILE @iteration < @max_iterations DO
-    LOGGING f'Iteration {@iteration} | critiquing ...' LEVEL DEBUG
+    LOGGING f'\nIteration {@iteration} | critiquing ...' LEVEL INFO
     CALL critique_workflow(@current, @output_budget, @critic_model) INTO @feedback
     CALL write_file(f'{@log_dir}/feedback_{@iteration}.md', @feedback) INTO NONE
 
@@ -90,17 +99,17 @@ DO
         CALL write_file(f'{@log_dir}/final.md', @current) INTO NONE
         RETURN @current WITH status = 'complete', iterations = @iteration
       ELSE
-        GENERATE refined(@current, @feedback) WITH OUTPUT BUDGET @output_budget TOKENS 
-          USING MODEL @writer_model 
+        GENERATE refined(@task, @current, @feedback) WITH OUTPUT BUDGET @output_budget TOKENS
+          USING MODEL @writer_model
           INTO @current
         @iteration := @iteration + 1
         CALL write_file(f'{@log_dir}/draft_{@iteration}.md', @current) INTO NONE
-        LOGGING f'Refined | iteration={@iteration}' LEVEL DEBUG
+        LOGGING f'Refined | iteration={@iteration}' LEVEL INFO
     END
   END
 
   -- If loop exhausted, commit best effort
-  LOGGING f'Max iterations reached | iterations={@iteration}' LEVEL WARN
+  LOGGING f'\nMax iterations reached | iterations={@iteration}' LEVEL WARN
   CALL write_file(f'{@log_dir}/final.md', @current) INTO NONE
   RETURN @current WITH status = 'max_iterations', iterations = @iteration
 

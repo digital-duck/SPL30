@@ -1,6 +1,6 @@
 # SPL 3.0 Cookbook — Testing Guide
 
-Recipes 05 and 50–56 validate SPL 3.0 capabilities end-to-end.
+Recipes 05, 50–62 validate SPL 3.0 capabilities end-to-end.
 Recipes 50–55 each have a `.spl` logical view and a `run.py` physical runner.
 Recipes 05 and 56 run via the `spl` CLI and demonstrate native workflow composition (`CALL`).
 
@@ -21,10 +21,24 @@ pip install -e .             # SPL30 (LiquidAdapter, codecs, etc.)
 
 ```bash
 ollama serve                 # start if not running
-ollama pull gemma4:e4b       # vision model — recipes 50, 54, 55, 56
+ollama pull gemma4:e4b       # vision + video model — recipes 50, 54, 55, 56, 60, 62
 ollama pull gemma3           # writer model — recipe 05 self_refine
 ollama pull llama3.2         # critic model — recipe 05 self_refine
 ollama list                  # verify
+```
+
+### Codec tools (recipes 57, 58, 61, 62)
+
+```bash
+# Pillow — image format conversion (recipe 57)
+pip install Pillow
+
+# pydub + ffmpeg — audio/video codec operations (recipes 58, 61, 62)
+pip install pydub
+sudo apt install ffmpeg      # Ubuntu/Debian
+# brew install ffmpeg        # macOS
+
+ffmpeg -version              # verify
 ```
 
 ### API keys
@@ -87,8 +101,8 @@ asyncio.run(gen())
 
 | Tier | Recipes | Requires | `is_active` default |
 |------|---------|----------|---------------------|
-| 1 | 05 `self_refine`, 50 `image_caption`, 56 `code_pipeline` | Ollama only | `true` |
-| 2 | 52 `text_to_image`, 53 `text_to_speech` | `OPENAI_API_KEY` | `false` |
+| 1 | 05 `self_refine`, 50 `image_caption`, 56 `code_pipeline`, 57 `image_convert`, 58 `audio_convert`, 61 `video_to_audio`, 60 `video_summary`, 62 `video_to_image` | Ollama / ffmpeg / Pillow | `true` (codec); `false` (video) |
+| 2 | 52 `text_to_image`, 53 `text_to_speech`, 59 `text_to_video` | `OPENAI_API_KEY` / `GOOGLE_API_KEY` | `false` |
 | 3 | 51 `audio_summary` | `OPENROUTER_API_KEY` | `false` |
 | 4 | 54 `image_restyle`, 55 `voice_dialogue` | `OPENAI_API_KEY` + `OPENROUTER_API_KEY` + Ollama | `false` |
 
@@ -446,6 +460,234 @@ Expected log output:
 
 ---
 
+## Media Conversion Recipes (Tier 1, no API key)
+
+### Recipe 57: Image Format Conversion (IMAGE → IMAGE)
+
+```bash
+# PNG → JPEG (default, quality 85)
+python cookbook/57_image_convert/run.py \
+    --image cookbook/50_image_caption/sample/photo.jpg \
+    --target-format png
+
+# JPEG → WebP (high quality)
+python cookbook/57_image_convert/run.py \
+    --image cookbook/50_image_caption/sample/photo.jpg \
+    --target-format webp --quality 90
+
+# PNG → BMP
+python cookbook/57_image_convert/run.py \
+    --image cookbook/50_image_caption/sample/photo.jpg \
+    --target-format bmp
+```
+
+**What to verify:**
+- [ ] Output file appears in `cookbook/57_image_convert/outputs/`
+- [ ] Format is correct (open with image viewer or `file <output>`)
+- [ ] Quality param affects JPEG/WebP file size meaningfully
+- [ ] `FileNotFound` and `UnsupportedFormat` exceptions surface correctly
+
+---
+
+### Recipe 58: Audio Format Conversion (AUDIO → AUDIO)
+
+```bash
+# WAV → MP3 (default 192k)
+python cookbook/58_audio_convert/run.py \
+    --audio cookbook/51_audio_summary/sample/clip.mp3 \
+    --target-format wav
+
+# MP3 → OGG
+python cookbook/58_audio_convert/run.py \
+    --audio cookbook/51_audio_summary/sample/clip.mp3 \
+    --target-format ogg --bitrate 128k
+
+# WAV → FLAC (lossless)
+python cookbook/58_audio_convert/run.py \
+    --audio cookbook/51_audio_summary/sample/clip.mp3 \
+    --target-format flac
+```
+
+**What to verify:**
+- [ ] Output file appears in `cookbook/58_audio_convert/outputs/`
+- [ ] Audio is playable and format is correct (`ffprobe <output>`)
+- [ ] `CodecError` surfaces cleanly if ffmpeg is missing
+
+---
+
+## Video Recipes
+
+### Prerequisites for video recipes
+
+```bash
+# Use any short MP4 clip as sample input (10–30 seconds recommended)
+# Place it at the expected sample path for each recipe, e.g.:
+cp /path/to/your/clip.mp4 cookbook/60_video_summary/sample/clip.mp4
+cp /path/to/your/clip.mp4 cookbook/61_video_to_audio/sample/clip.mp4
+cp /path/to/your/clip.mp4 cookbook/62_video_to_image/sample/clip.mp4
+```
+
+---
+
+### Recipe 59: Text to Video (TEXT → VIDEO, Tier 2)
+
+Requires `GOOGLE_API_KEY` (Veo 2) or a RunwayML API key.
+
+```bash
+export GOOGLE_API_KEY=...
+
+# Default — forest at dawn, 5 seconds, cinematic
+python cookbook/59_text_to_video/run.py \
+    --prompt "A duck walking through a quiet forest at dawn, soft morning light"
+
+# With gemma4 prompt enhancement
+python cookbook/59_text_to_video/run.py \
+    --prompt "A mountain lake at sunset" \
+    --style "cinematic, drone shot" --enhance
+
+# No enhancement, portrait aspect, 8 seconds
+python cookbook/59_text_to_video/run.py \
+    --prompt "A candle flickering in the wind" \
+    --aspect portrait --duration 8 --enhance false
+```
+
+**What to verify:**
+- [ ] Prompt enhancement produces a more detailed, cinematic prompt
+- [ ] Video file appears in `cookbook/59_text_to_video/outputs/`
+- [ ] `ModelUnavailable` surfaces cleanly if API key is missing or quota exceeded
+
+---
+
+### Recipe 60: Video Summary (VIDEO → TEXT, Tier 1)
+
+```bash
+# Default — summary mode
+python cookbook/60_video_summary/run.py \
+    --video cookbook/60_video_summary/sample/clip.mp4
+
+# Transcript with timestamps
+python cookbook/60_video_summary/run.py \
+    --video cookbook/60_video_summary/sample/clip.mp4 --mode transcript
+
+# Key moments list
+python cookbook/60_video_summary/run.py \
+    --video cookbook/60_video_summary/sample/clip.mp4 --mode key_moments
+
+# Chapter breakdown
+python cookbook/60_video_summary/run.py \
+    --video cookbook/60_video_summary/sample/clip.mp4 --mode chapters
+
+# Custom summary style
+python cookbook/60_video_summary/run.py \
+    --video cookbook/60_video_summary/sample/clip.mp4 \
+    --mode summary --style "three bullet points, executive style"
+```
+
+**What to verify:**
+- [ ] gemma4 correctly processes the VIDEO type (frames + audio)
+- [ ] `[NO SPEECH]` output in transcript mode for silent videos
+- [ ] All 4 modes produce structurally distinct output formats
+- [ ] `FileNotFound` exception surfaces for missing video
+
+---
+
+### Recipe 61: Video to Audio (.mp4 → .mp3, Tier 1)
+
+```bash
+# Default — MP3 at 192k
+python cookbook/61_video_to_audio/run.py \
+    --video cookbook/61_video_to_audio/sample/clip.mp4
+
+# WAV at high sample rate
+python cookbook/61_video_to_audio/run.py \
+    --video cookbook/61_video_to_audio/sample/clip.mp4 \
+    --target-format wav --sample-rate 48000
+
+# FLAC lossless
+python cookbook/61_video_to_audio/run.py \
+    --video cookbook/61_video_to_audio/sample/clip.mp4 \
+    --target-format flac
+
+# Pipe output directly into recipe 51 (audio_summary)
+# (demonstrates composability — video_to_audio → audio_summary)
+python cookbook/61_video_to_audio/run.py \
+    --video cookbook/61_video_to_audio/sample/clip.mp4 \
+    --output-dir /tmp/extracted && \
+python cookbook/51_audio_summary/run.py \
+    --audio /tmp/extracted/clip.mp3
+```
+
+**What to verify:**
+- [ ] Audio track extracted correctly and is playable
+- [ ] `NoAudioTrack` exception for silent/video-only files
+- [ ] Composability: output feeds into recipe 51 without modification
+
+---
+
+### Recipe 62: Video to Image (VIDEO → IMAGE, Tier 1)
+
+```bash
+# Extract middle frame (default)
+python cookbook/62_video_to_image/run.py \
+    --video cookbook/62_video_to_image/sample/clip.mp4
+
+# Extract at specific timestamp
+python cookbook/62_video_to_image/run.py \
+    --video cookbook/62_video_to_image/sample/clip.mp4 \
+    --mode timestamp --timestamp 00:00:03
+
+# First frame
+python cookbook/62_video_to_image/run.py \
+    --video cookbook/62_video_to_image/sample/clip.mp4 --mode first
+
+# Last frame
+python cookbook/62_video_to_image/run.py \
+    --video cookbook/62_video_to_image/sample/clip.mp4 --mode last
+
+# Extract frame + caption with gemma4 vision
+python cookbook/62_video_to_image/run.py \
+    --video cookbook/62_video_to_image/sample/clip.mp4 \
+    --caption --context "This is a wildlife documentary clip"
+
+# Pipe output into recipe 50 (image_caption) for full captioning
+# (demonstrates composability — video_to_image → image_caption)
+python cookbook/62_video_to_image/run.py \
+    --video cookbook/62_video_to_image/sample/clip.mp4 \
+    --output-dir /tmp/frames && \
+python cookbook/50_image_caption/run.py \
+    --image /tmp/frames/frame_middle.jpg --mode detailed
+```
+
+**What to verify:**
+- [ ] Frame extracted at correct position (verify visually)
+- [ ] `InvalidTimestamp` exception for out-of-range timestamps
+- [ ] Caption mode calls gemma4 vision and returns meaningful description
+- [ ] `ModelUnavailable` in caption mode returns frame with `status = 'partial'` (not a crash)
+- [ ] Composability: output feeds into recipe 50 without modification
+
+---
+
+## Recipe Summary
+
+| id | Name | Input | Output | Tier | Key model(s) | Notes |
+|---|---|---|---|---|---|---|
+| 05 | `self_refine` | TEXT | TEXT | 1 | gemma3 + llama3.2 (Ollama) | First `CALL` workflow demo |
+| 50 | `image_caption` | IMAGE | TEXT | 1 | gemma4:e4b (Ollama) | |
+| 51 | `audio_summary` | AUDIO | TEXT | 3 | LFM-2.5 (OpenRouter) | |
+| 52 | `text_to_image` | TEXT | IMAGE | 2 | DALL-E 3 (OpenAI) | |
+| 53 | `text_to_speech` | TEXT | AUDIO | 2 | OpenAI TTS or system | |
+| 54 | `image_restyle` | IMAGE + TEXT | TEXT + IMAGE | 4 | gemma4:e4b + DALL-E 3 | |
+| 55 | `voice_dialogue` | AUDIO + TEXT | TEXT + AUDIO | 4 | LFM-2.5 + gemma4:e4b + OpenAI TTS | |
+| 56 | `code_pipeline` | TEXT (spec) | TEXT (docs + closure) | 1 | gemma4 (Ollama) | NDD closure; 7 sub-workflows |
+| 57 | `image_convert` | IMAGE | IMAGE | 1 | — (codec only) | PNG ↔ JPEG ↔ WebP ↔ BMP |
+| 58 | `audio_convert` | AUDIO | AUDIO | 1 | — (codec only) | WAV ↔ MP3 ↔ OGG ↔ FLAC |
+| 59 | `text_to_video` | TEXT | VIDEO | 2 | Veo 2 / RunwayML + gemma4 | First VIDEO output recipe |
+| 60 | `video_summary` | VIDEO | TEXT | 1 | gemma4 (Ollama) | 4 modes; first VIDEO input recipe |
+| 61 | `video_to_audio` | VIDEO | AUDIO | 1 | — (codec only) | .mp4 → .mp3 / .wav / .flac |
+| 62 | `video_to_image` | VIDEO | IMAGE | 1 | gemma4 optional | Frame extraction + optional caption |
+
+---
+
 ## Automated Testing with run_all.py
 
 `run_all.py` reads `cookbook_catalog.json` and runs recipes as subprocesses.
@@ -535,17 +777,3 @@ Status values: `new` → `wip` → `approved` (or `disabled` / `rejected`).
 | `llama3.2 not found` (recipe 05) | Model not pulled | `ollama pull llama3.2` |
 | `gemma3 not found` (recipe 05) | Model not pulled | `ollama pull gemma3` |
 
----
-
-## Recipe Summary
-
-| id | Name | Input | Output | Tier | Key model(s) | Notes |
-|---|---|---|---|---|---|---|
-| 05 | `self_refine` | TEXT | TEXT | 1 | gemma3 + llama3.2 (Ollama) | First `CALL` workflow demo |
-| 50 | `image_caption` | IMAGE | TEXT | 1 | gemma4:e4b (Ollama) | |
-| 51 | `audio_summary` | AUDIO | TEXT | 3 | LFM-2.5 (OpenRouter) | |
-| 52 | `text_to_image` | TEXT | IMAGE | 2 | DALL-E 3 (OpenAI) | |
-| 53 | `text_to_speech` | TEXT | AUDIO | 2 | OpenAI TTS or system | |
-| 54 | `image_restyle` | IMAGE + TEXT | TEXT + IMAGE | 4 | gemma4:e4b + DALL-E 3 | |
-| 55 | `voice_dialogue` | AUDIO + TEXT | TEXT + AUDIO | 4 | LFM-2.5 + gemma4:e4b + OpenAI TTS | |
-| 56 | `code_pipeline` | TEXT (spec) | TEXT (docs + closure report) | 1 | gemma4 (Ollama) | NDD closure; 7 sub-workflows |
