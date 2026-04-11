@@ -205,3 +205,15 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# SPL runtime state — regenerated on each run, never commit
+.spl/
+spl3/rag/.chroma/
+
+# Local tooling logs
+go_git.log
+*.log
+
+# Claude Code local settings
+.claude/
+

@@ -9,7 +9,7 @@ and a conditional edge that mirrors SPL's `EVALUATE ... WHEN 'satisfactory'`.
 ```bash
 conda create -n langgraph python=3.11 -y
 conda activate langgraph
-pip install langgraph langchain-ollama
+pip install langgraph langchain-ollama click
 ```
 
 Requires Ollama running locally:
@@ -21,16 +21,12 @@ ollama pull gemma3   # or any model you prefer
 ## Run
 
 ```bash
-# From SPL20/ root
-python cookbook/05_self_refine/langgraph/self_refine_langgraph.py \
-    --task "Write a haiku about coding"
-
-# Custom model and iteration limit
-python cookbook/05_self_refine/langgraph/self_refine_langgraph.py \
-    --task "Explain recursion in one paragraph" \
+python cookbook/05_self_refine/targets/python/langgraph/self_refine_langgraph.py \
+    --task "What are the benefits of meditation?" \
     --max-iterations 3 \
-    --model llama3.2 \
-    --log-dir cookbook/05_self_refine/langgraph/logs
+    --writer-model llama3.2 \
+    --critic-model llama3.2 \
+    --log-dir cookbook/05_self_refine/targets/python/langgraph/logs
 ```
 
 ## Validate
@@ -66,8 +62,8 @@ spl run cookbook/05_self_refine/self_refine.spl \
 
 | File | LOC (non-blank, non-comment) |
 |------|------------------------------|
-| `self_refine.spl` | ~35 |
-| `self_refine_langgraph.py` | ~80 |
+| `self_refine.spl` | 117 |
+| `self_refine_langgraph.py` | 168 |
 
 Extra lines come from: explicit `TypedDict` state definition, node functions,
 graph wiring (`add_node` / `add_edge`), and the `argparse` boilerplate that

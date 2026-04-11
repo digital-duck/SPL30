@@ -81,6 +81,7 @@ ollama list                  # verify both are present
 
 ```bash
 cd ~/projects/digital-duck/SPL30
+
 pip install -e ~/projects/digital-duck/SPL20
 pip install -e ~/projects/digital-duck/SPL30
 
@@ -159,6 +160,65 @@ spl run cookbook/05_self_refine/self_refine.spl \
     --param task="Summarise the benefits of SPL 3.0" \
     --param log_dir=/tmp/self_refine_logs
 ```
+
+---
+
+## Testing — LangGraph Edition
+
+A Python/LangGraph implementation of the same self-refine pattern lives at
+`targets/python/langgraph/`. It maps directly to `self_refine.spl`:
+`draft → critique → refine → commit` nodes with a conditional edge that
+mirrors SPL's `EVALUATE ... WHEN 'satisfactory'`.
+
+### Setup
+
+```bash
+cd ~/projects/digital-duck/SPL30
+
+conda create -n langgraph python=3.11 -y
+conda activate langgraph
+pip install langgraph langchain-ollama click
+```
+
+### Single run
+
+```bash
+python cookbook/05_self_refine/targets/python/langgraph/self_refine_langgraph.py \
+    --task "What are the benefits of meditation?" \
+    --max-iterations 3 \
+    --writer-model llama3.2 \
+    --critic-model llama3.2 \
+    --log-dir cookbook/05_self_refine/targets/python/langgraph/logs
+```
+
+### Benchmark across models
+
+```bash
+bash cookbook/05_self_refine/benchmark-langgraph.sh
+```
+
+Runs `gemma3`, `gemma4:e2b`, and `gemma4:e4b` sequentially. Logs are written
+to per-model directories alongside the script:
+
+```
+targets/python/langgraph/logs-gemma3/
+targets/python/langgraph/logs-gemma4_e2b/
+targets/python/langgraph/logs-gemma4_e4b/
+```
+
+Each directory contains `draft_0.md`, `feedback_0.md`, `draft_N.md`, and
+`final.md` — same schema as the SPL log output.
+
+### LOC comparison
+
+| File | LOC (non-blank, non-comment) |
+|------|------------------------------|
+| `self_refine.spl` | 117 |
+| `self_refine_langgraph.py` | 168 |
+
+Extra lines in the Python version come from explicit `TypedDict` state
+definition, node functions, graph wiring (`add_node` / `add_edge`), and
+`argparse` boilerplate that `spl run` handles automatically.
 
 ---
 
