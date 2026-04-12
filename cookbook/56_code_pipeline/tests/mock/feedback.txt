@@ -1,0 +1,4 @@
+- Missing empty list guard: calling `len(arr)` on None will raise TypeError
+- Off-by-one: `hi` should be initialized to `len(arr) - 1`, not `len(arr)` — risks IndexError on first access
+- Loop condition `lo < hi` should be `lo <= hi` — misses the case where target is the last remaining element
+- Comparison direction is flipped: `arr[mid] > target` should route to `hi = mid - 1`, not `lo = mid + 1`

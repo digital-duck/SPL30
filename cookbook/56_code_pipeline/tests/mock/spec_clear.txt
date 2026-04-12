@@ -1,0 +1,1 @@
+Write a Python function `binary_search(arr, target)` that searches a sorted list for a target value. Return the index if found, or -1 if not found. Handle edge cases: empty list, single element, duplicates (return any matching index).

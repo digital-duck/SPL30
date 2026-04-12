@@ -1,0 +1,1 @@
+Write a Python function `binary_search(arr, target)` that performs binary search on a sorted list. Returns the index of target if found, or -1 if not present. Handles empty input gracefully.
