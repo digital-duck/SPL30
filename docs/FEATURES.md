@@ -1,218 +1,286 @@
-# SPL 3.0 — Implemented Features
+# SPL — Implemented Features
 
-*Last updated: 2026-04-06. Based on `pytest tests/ -v` in conda env `spl2`.*
-*Test result: **85 passed, 10 failed** out of 95 total.*
+*Last updated: 2026-04-13.*
+*SPL30 is the canonical source of truth for SPL language design and runtime features.*
 
 Status legend:
-- `[DONE]` — implemented and all tests passing
-- `[PARTIAL]` — implemented, some tests failing (root cause noted)
-- `[TODO]` — designed/documented in ROADMAP.md, not yet coded
+- `[DONE]` — implemented and tested
+- `[PARTIAL]` — implemented, some gaps or known issues noted
+- `[TODO]` — designed, not yet coded (see ROADMAP.md)
 
 ---
 
-## spl/ — Core Runtime
+## Language Versions
 
-### Type System (`spl/types.py`)
+| Version | Runtime | CLI | Repo |
+|---------|---------|-----|------|
+| SPL 1.0 | Python | `spl` | `SPL/` |
+| SPL 2.0 | Python | `spl3` (base layer) | `SPL20/` |
+| SPL 3.0 | Python | `spl3` | `SPL30/` |
+| SPL (Go port) | Go | `spl-go` | `SPL.go/` |
+| SPL (TypeScript port) | TypeScript / Node.js / Browser | `spl-ts` | `SPL.ts/` |
 
-| Feature | Status | Tests |
-|---|---|---|
-| `SPL3Type` enum (TEXT, NUMBER, BOOL, LIST, MAP, STORAGE) | `[DONE]` | `test_types.py::TestSPL3Type` |
-| `INT` / `FLOAT` split from `NUMBER` (v3.0 precision) | `[DONE]` | `TestSPL3Type`, `TestNumericTypes` |
-| `NONE` / `NULL` type (first-class null) | `[DONE]` | `TestSPL3Type` |
-| `SET` type (unordered unique collection) | `[DONE]` | `TestSPL3Type`, `TestSetLiteral` |
-| `IMAGE` / `AUDIO` / `VIDEO` multimodal types | `[DONE]` | `TestSPL3Type`, `TestMultimodalTypes` |
-| `DATACLASS` type placeholder (v3.1) | `[DONE]` | `TestSPL3Type` (enum member only) |
-| `from_str()` with aliases (BOOLEAN→BOOL, NULL→NONE, INTEGER→INT, STR→TEXT, DICT→MAP) | `[DONE]` | `TestSPL3Type::test_from_str_aliases` |
-| `is_multimodal` / `is_collection` / `is_numeric` properties | `[DONE]` | `TestSPL3Type` |
-| `python_equivalent` property | `[DONE]` | `TestSPL3Type::test_python_equivalent` |
-| `coerce_to_int()` (handles float strings: `"7.9"` → `7`) | `[DONE]` | `TestCoerceHelpers` |
-| `coerce_to_float()` | `[DONE]` | `TestCoerceHelpers` |
-| `is_none_value()` (NONE serializes to `""`) | `[DONE]` | `TestCoerceHelpers` |
-| `SPL3_TYPE_KEYWORDS` dict for lexer extension | `[DONE]` | (unit test via `from_str`) |
-
-### Parser Extensions (`spl/parser.py`, `spl/ast_nodes.py`)
-
-| Feature | Status | Tests |
-|---|---|---|
-| `SET` literal `{a, b, c}` parsing + `{}` → MAP disambiguation | `[DONE]` | `TestSetLiteral` |
-| `SET` evaluates to sorted, deduplicated JSON array | `[DONE]` | `TestSetLiteral::test_set_evaluates_to_sorted_json_array` |
-| `IMPORT 'file.spl'` statement parsing | `[DONE]` | `TestImportStatement::test_import_parses` |
-| `IMPORT` before `WORKFLOW` in same file | `[DONE]` | `TestImportStatement::test_import_before_workflow` |
-| INT / FLOAT / IMAGE / AUDIO / VIDEO type annotations in `INPUT:` | `[DONE]` | `TestNumericTypes`, `TestMultimodalTypes`, `TestSetTypeAnnotation` |
-| `NONE` / `NULL` as expression literal (`@x := NONE`) | `[PARTIAL]` | 4 tests fail — SPL2 base parser rejects NONE as expression token; SPL3Parser extension not yet wired |
-| `NULL` alias for NONE | `[PARTIAL]` | same root cause |
-
-### Loader (`spl/_loader.py`)
-
-| Feature | Status | Tests |
-|---|---|---|
-| `load_workflows_from_file()` — parses `.spl` and returns `WorkflowDefinition` list | `[DONE]` | `TestImportStatement::test_import_loader_resolves_file` |
-| IMPORT chain resolution (follows imports transitively) | `[DONE]` | `TestImportStatement::test_import_loader_resolves_file` |
-| Circular IMPORT detection + warning (skips, does not crash) | `[DONE]` | `TestImportStatement::test_import_circular_detected` |
-
-### Registry (`spl/registry.py`)
-
-| Feature | Status | Tests |
-|---|---|---|
-| `LocalRegistry` — register / get / has / list / `__len__` | `[DONE]` | `TestLocalRegistry` |
-| Overwrite-with-warning on name collision | `[DONE]` | `TestLocalRegistry::test_overwrite_warns` |
-| `load_file()` — parse + register from `.spl` file | `[DONE]` | `TestLocalRegistry::test_load_file` |
-| `load_dir()` — recursive load from directory | `[DONE]` | `TestLocalRegistry::test_load_dir` (uses `cookbook/code_pipeline/`) |
-| `FederatedRegistry` — local-first, Hub fallback on miss | `[DONE]` | `TestFederatedRegistry` |
-| `HubRegistry` — REST-backed registry | `[TODO]` | (designed in `spl/hub_registry.py`) |
-
-### Invocation Event Model (`spl/event.py`)
-
-| Feature | Status | Tests |
-|---|---|---|
-| `WorkflowInvocationEvent` dataclass (event_id, workflow_name, args, status, output) | `[DONE]` | `TestWorkflowInvocationEvent` |
-| `EventStatus` enum (PENDING → RUNNING → COMPLETE \| FAILED) | `[DONE]` | `TestWorkflowInvocationEvent` |
-| `mark_running()` / `mark_complete()` / `mark_failed()` lifecycle transitions | `[DONE]` | `TestWorkflowInvocationEvent` |
-| `parent_event_id` call-tree linkage | `[DONE]` | `TestWorkflowInvocationEvent::test_is_not_root_when_has_parent` |
-| `qualified_name` (namespace.workflow_name) | `[DONE]` | `TestWorkflowInvocationEvent::test_qualified_name_with_namespace` |
-| `latency_ms` / `queue_wait_ms` derived properties | `[DONE]` | `TestWorkflowInvocationEvent::test_latency_ms` |
-| `to_task_payload()` — Hub POST /tasks serialization (with `peer_hub` support) | `[DONE]` | `TestWorkflowInvocationEvent::test_to_task_payload` |
-| `from_task_response()` — Hub GET /tasks/{id} deserialization | `[DONE]` | `TestWorkflowInvocationEvent::test_from_task_response` |
-| `EventCallTree.build()` — reconstruct call tree from flat event list | `[DONE]` | `TestEventCallTree::test_build_tree` |
-| `EventCallTree.print_tree()` — visual call tree for debugging | `[DONE]` | `TestEventCallTree::test_print_tree_runs` |
-| `EventCallTree.build()` raises `ValueError` for all-orphaned events | `[PARTIAL]` | 1 test fails — build() returns None instead of raising |
-
-### COMMIT Status → EXCEPTION Channel (`spl/status.py`)
-
-| Feature | Status | Tests |
-|---|---|---|
-| `STATUS_TO_EXCEPTION` mapping (refused/blocked → RefusalToAnswer, partial → QualityBelowThreshold, timeout → NodeUnavailable, etc.) | `[DONE]` | `TestStatusToExceptionType` |
-| `SUCCESSFUL_STATUSES` set (`complete`, `no_commit`) | `[DONE]` | `TestStatusToExceptionType` |
-| `status_to_exception_type()` — unknown statuses fall back to GenerationError | `[DONE]` | `TestStatusToExceptionType::test_unknown_status_maps_to_generation_error` |
-| `raise_if_failed()` — raises `WorkflowCompositionError` on non-success | `[DONE]` | `TestRaiseIfFailed` |
-| `WorkflowCompositionError` — typed exception with `exception_type`, `workflow_name`, `status`, `output` fields | `[DONE]` | `TestRaiseIfFailed` |
-
-### Code-RAG (`spl/code_rag.py`)
-
-| Feature | Status | Tests |
-|---|---|---|
-| `CodeRAGStore` — `add_pair()` / `retrieve()` / `count()` / `format_examples()` | `[PARTIAL]` | 5 tests fail — hardcoded `sentence_transformers` provider; not installed in spl2. Switch to `ollama` adapter to fix |
-| `seed_from_dir()` — index `.spl` files from a directory | `[PARTIAL]` | same root cause |
-| `seed_from_catalog()` — index from JSON catalog | `[PARTIAL]` | same root cause |
-
-### Workflow Composition (`spl/composer.py`)
-
-| Feature | Status | Tests |
-|---|---|---|
-| `CALL workflow_name(@args) INTO @var` resolution | `[TODO]` | no tests yet |
-| `CALL PARALLEL ... END` concurrent dispatch | `[TODO]` | no tests yet |
+SPL30 is the reference implementation. All other runtimes are ports validated
+against SPL30 via **NDD closure** (`spl3 run --adapter echo` as oracle, `diff` as judge).
 
 ---
 
-## text2spl/ — Semantic Layer (text → SPL logical view)
+## SPL Language Constructs
 
-### Shared Recipe RAG (`spl/rag/`)
+### SPL 1.0 — Prompt-Query Layer
 
-| Feature | Status | Notes |
-|---|---|---|
-| `index_recipes.py` — index all SPL v2.0 recipes into ChromaDB | `[DONE]` | 41/42 recipes indexed; recipe 22 skipped (shell script, no `.spl`). Uses `dd_embed` (OllamaEmbedAdapter) + `dd_vectordb` (ChromaVectorDB). Run: `python spl/rag/index_recipes.py --reset` |
-| Context-window truncation (6 000 char cap for nomic-embed-text) | `[DONE]` | Prevents HTTP 500 on long recipes (plan_execute, code_review, ensemble_voting) |
-| `search.py` — `search_recipes(query, k, category)` retrieval | `[DONE]` | Verified: rank-1 hit is semantically exact for 3 test queries |
-| Category filter in search | `[DONE]` | `--category agentic` etc. |
-| `text2spl.spl` workflow (intent → spec → .spl) | `[TODO]` | Design in SPL-by-spec.md; not yet coded |
+| Construct | Description | Status |
+|-----------|-------------|--------|
+| `PROMPT name WITH BUDGET n TOKENS` | Named prompt definition with token budget | `[DONE]` |
+| `SELECT expr AS alias LIMIT n TOKENS` | Select clause with per-item token limits | `[DONE]` |
+| `FROM source AS alias` | Data source binding | `[DONE]` |
+| `WHERE cond AND/OR cond` | Deterministic filter conditions | `[DONE]` |
+| `ORDER BY expr ASC/DESC` | Result ordering | `[DONE]` |
+| `GENERATE fn(args) WITH OUTPUT BUDGET n TOKENS` | LLM generation clause | `[DONE]` |
+| `USING MODEL 'name'` | Per-prompt model selection | `[DONE]` |
+| `STORE RESULT IN memory.key` | Result persistence | `[DONE]` |
+| `CACHE FOR n minutes/hours` | Prompt result caching | `[DONE]` |
+| `VERSION n` | Prompt versioning | `[DONE]` |
+| `ON GRID [url]` | Route execution to Momagrid node | `[DONE]` |
+| `WITH VRAM n` | Minimum VRAM constraint for node selection | `[DONE]` |
+| `WITH ... AS (...)` CTEs | Common Table Expressions (composable sub-prompts) | `[DONE]` |
+| `CREATE FUNCTION name(params) RETURN TEXT AS $$ ... $$` | Named prompt templates | `[DONE]` |
+| `EXPLAIN PROMPT name` | Prompt introspection | `[DONE]` |
+| `EXECUTE PROMPT name WITH PARAMS (...)` | Dynamic prompt invocation | `[DONE]` |
+| `rag.query(text, top_k=n)` | RAG retrieval in SELECT | `[DONE]` |
+| `memory.get('key')` | Memory read in SELECT | `[DONE]` |
+| `system_role('desc')` | System role injection | `[DONE]` |
+| `context.field` | Context field reference | `[DONE]` |
+
+### SPL 2.0 — Workflow / Procedural Layer
+
+| Construct | Description | Status |
+|-----------|-------------|--------|
+| `WORKFLOW name INPUT: ... OUTPUT: ... DO ... END` | Named workflow definition | `[DONE]` |
+| `PROCEDURE name(params) RETURNS type DO ... END` | Named procedure (function-style) | `[DONE]` |
+| `@var := expr` | Variable assignment | `[DONE]` |
+| `SET @var = expr` | Alternative assignment syntax | `[DONE]` |
+| `GENERATE fn(args) ... INTO @var` | LLM generation into variable | `[DONE]` |
+| `SELECT ... FROM ... INTO @var` | Query result into variable | `[DONE]` |
+| `CALL name(args) INTO @var` | Sub-workflow / procedure call | `[DONE]` |
+| `EVALUATE @var WHEN ... THEN ... ELSE ... END` | Semantic branching | `[DONE]` |
+| `WHEN contains('token')` | Token presence condition | `[DONE]` |
+| `WHEN contains('a') OR contains('b')` | Multi-token OR condition | `[DONE]` |
+| `WHEN startswith('prefix')` | Prefix condition | `[DONE]` |
+| `WHEN = value / > / < / >= / <=` | Comparison conditions | `[DONE]` |
+| `WHILE cond DO ... END` | Conditional loop | `[DONE]` |
+| `WHILE NOT @var DO` | Negation loop condition | `[DONE]` |
+| `WHILE @a < @b AND NOT @done DO` | Compound loop condition (AND/OR) | `[DONE]` |
+| `WHILE @item IN @items DO` | Collection iteration | `[DONE]` |
+| `RETURN expr [WITH status = '...']` | Commit workflow output with optional status | `[DONE]` |
+| `COMMIT expr [WITH status = '...']` | Alias for RETURN (deprecated) | `[DONE]` |
+| `RAISE ExceptionType 'message'` | Raise SPL exception | `[DONE]` |
+| `EXCEPTION WHEN Type THEN ... END` | Exception handler | `[DONE]` |
+| `WHEN OTHERS THEN` | Catch-all exception handler | `[DONE]` |
+| `DO ... EXCEPTION ... END` | Inline exception scope | `[DONE]` |
+| `RETRY [WITH ...] [LIMIT n]` | Retry on failure | `[DONE]` |
+| `LOGGING expr LEVEL INFO/DEBUG/WARN/ERROR` | Structured logging | `[DONE]` |
+| `LOGGING expr TO 'file'` | Log to file destination | `[DONE]` |
+| `f'text {@var} text'` | F-string interpolation | `[DONE]` |
+| `@a + @b` / `@a - @b` / `@a || @b` | Arithmetic and string concat operators | `[DONE]` |
+| `[a, b, c]` list literals | List literal expression | `[DONE]` |
+| `{'key': value}` map literals | Map literal expression | `[DONE]` |
+| `DEFAULT value` on INPUT params | Input parameter defaults | `[DONE]` |
+| `SECURITY: CLASSIFICATION: level` | Security metadata block | `[DONE]` |
+| `ACCOUNTING: key: value` | Accounting metadata block | `[DONE]` |
+| `LABELS: {'key': 'value'}` | Label metadata block | `[DONE]` |
+
+### SPL 3.0 — Composition / Distribution Layer
+
+| Construct | Description | Status |
+|-----------|-------------|--------|
+| `IMPORT 'file.spl'` | Multi-file workflow composition | `[DONE]` |
+| `IMPORT 'file'` | Extension-optional import | `[DONE]` |
+| `CALL PARALLEL ... END` | Concurrent sub-workflow dispatch | `[DONE]` |
+| `INTO NONE` | Discard call result explicitly | `[DONE]` |
+| `{a, b, c}` SET literals | Unordered unique collection | `[DONE]` |
+| `NONE` / `NULL` literals | First-class null value | `[PARTIAL]` — SPL2 base parser gap |
+| `IMAGE` / `AUDIO` / `VIDEO` param types | Multi-modal INPUT type annotations | `[DONE]` |
+| `STORAGE(backend, path)` param type | Persistent storage binding | `[DONE]` |
 
 ---
 
-## splc/ — Structural Layer (SPL logical view → physical deployment)
+## Exception Types
 
-### Targets: Python (`cookbook/05_self_refine/targets/python/`)
+| Exception | Raised when |
+|-----------|-------------|
+| `RefusalToAnswer` | Model refuses to answer |
+| `HallucinationDetected` | LLM judge flags hallucination |
+| `ModelUnavailable` | Adapter cannot reach model |
+| `MaxIterationsReached` | WHILE loop exceeds limit |
+| `QualityBelowThreshold` | Quality judge score too low |
+| `WorkflowCompositionError` | CALL returns non-complete status |
+| `ToolFailed` | CALL tool raises Python exception |
 
-| Target | Framework | Status | Notes |
-|---|---|---|---|
-| `self_refine_langgraph.py` | LangGraph | `[DONE]` | state graph: draft → critique → refine → commit |
-| `self_refine_crewai.py` | CrewAI | `[DONE]` | Writer + Critic agents with manual loop |
-| `self_refine_autogen.py` | AutoGen | `[DONE]` | ConversableAgent pair with termination condition |
+---
 
-### Targets: Go (`cookbook/05_self_refine/targets/go/`)
+## Type System
+
+| Type | Description | Status |
+|------|-------------|--------|
+| `TEXT` | String (default) | `[DONE]` |
+| `INT` / `INTEGER` | Integer with coercion from float strings | `[DONE]` |
+| `FLOAT` | Floating point | `[DONE]` |
+| `BOOL` | Boolean (`TRUE`/`FALSE`) | `[DONE]` |
+| `LIST` | JSON array | `[DONE]` |
+| `MAP` | JSON object | `[DONE]` |
+| `SET` | Sorted deduplicated JSON array | `[DONE]` |
+| `NONE` / `NULL` | First-class null | `[PARTIAL]` |
+| `IMAGE` / `AUDIO` / `VIDEO` | Multi-modal media | `[DONE]` |
+| `STORAGE` | Persistent key-value store binding | `[DONE]` |
+
+---
+
+## Adapters
+
+### Python (SPL30)
+
+| Adapter | Backend | Status |
+|---------|---------|--------|
+| `ollama` | Ollama REST API (local) | `[DONE]` |
+| `echo` | Returns prompt unchanged (NDD closure testing) | `[DONE]` |
+| `anthropic` / `claude_cli` | Anthropic API | `[DONE]` |
+| `openai` | OpenAI API | `[DONE]` |
+| `openrouter` | OpenRouter | `[DONE]` |
+| `deepseek` | DeepSeek API | `[DONE]` |
+| `qwen` | Qwen API | `[DONE]` |
+| `liquid` (LiquidAdapter) | LFM2-8B/24B + LFM-2.5 via Ollama or OpenRouter | `[DONE]` |
+| `snap` (SnapAdapter) | Ubuntu AI Snap | `[TODO]` — awaits Ubuntu 26.04 GA |
+| Multi-modal base (`MultiModalMixin`) | Image / Audio / Video content parts | `[DONE]` |
+
+### Go (SPL.go)
+
+| Adapter | Status |
+|---------|--------|
+| `ollama` | `[DONE]` |
+| `echo` | `[DONE]` |
+| `anthropic` | `[DONE]` |
+| `openai` | `[DONE]` |
+| `openrouter` | `[DONE]` |
+| `deepseek` | `[DONE]` |
+| `qwen` | `[DONE]` |
+| `momagrid` | `[DONE]` |
+| `claude_cli` | `[DONE]` |
+
+### TypeScript (SPL.ts)
+
+| Adapter | Status | Notes |
+|---------|--------|-------|
+| `echo` | `[DONE]` | NDD closure oracle |
+| `ollama` | `[DONE]` | fetch-based; browser-compatible with `OLLAMA_ORIGINS=*` |
+| `openai` | `[DONE]` | fetch-based; works with OpenAI, Groq, Together, Mistral |
+
+---
+
+## Multi-Runtime Support
+
+| Runtime | CLI | Browser | Node.js | Status |
+|---------|-----|---------|---------|--------|
+| Python (SPL30) | `spl3` | No | No | `[DONE]` |
+| Go (SPL.go) | `spl-go` | No | No | `[DONE]` |
+| TypeScript (SPL.ts) | `spl-ts` | Yes | Yes | `[DONE]` |
+
+SPL.ts architecture constraint: core (lexer/parser/executor/stdlib) uses zero
+Node.js-specific APIs — only Web APIs (`fetch`, `console`, `Map`, `Promise`).
+`node:fs` is isolated to `cli.ts` only.
+
+---
+
+## Standard Library (Builtins)
+
+48 pure functions, available in all runtimes:
+
+| Category | Functions |
+|----------|-----------|
+| Type conversion | `to_int`, `to_float`, `to_text`, `to_bool` |
+| String | `upper`, `lower`, `trim`, `length`, `reverse`, `substr`, `replace`, `concat`, `split_part` |
+| Pattern | `like`, `startswith`, `endswith`, `contains`, `regexp_match` |
+| Numeric | `abs_val`, `round_val`, `ceil_val`, `floor_val`, `mod_val`, `power_val`, `sqrt_val`, `sign_val`, `clamp` |
+| JSON | `json_get`, `json_set`, `json_keys`, `json_length`, `json_pretty` |
+| Date/time | `now_iso`, `date_format_val`, `date_diff_days` |
+| Hashing | `md5_hash`, `sha256_hash` |
+| List | `list_get`, `list_length`, `list_join`, `list_contains`, `trim_turns` |
+| Null/coalesce | `isnull`, `nvl`, `isblank`, `coalesce`, `nullif`, `iif` |
+| Aggregates | `word_count`, `char_count`, `line_count` |
+
+---
+
+## Workflow Registry
+
+| Feature | Python | Go | TypeScript | Status |
+|---------|--------|----|------------|--------|
+| `LocalRegistry` / `Registry` | ✓ | ✓ | ✓ | `[DONE]` |
+| `load_dir()` / `loadFile()` | ✓ | ✓ | ✓ | `[DONE]` |
+| Circular IMPORT detection | ✓ | ✓ | ✓ | `[DONE]` |
+| `FederatedRegistry` (local + Hub fallback) | ✓ | — | `[TODO]` | `[PARTIAL]` |
+| `HubRegistry` (REST-backed) | ✓ | ✓ | `[TODO]` | `[PARTIAL]` |
+| Duplicate load silent skip (same file) | ✓ | ✓ | ✓ | `[DONE]` |
+
+---
+
+## Momagrid Hub (Distributed Runtime)
+
+| Feature | Status |
+|---------|--------|
+| Hub REST API (`POST /tasks`, `GET /tasks/{id}`) | `[DONE]` |
+| `WorkflowInvocationEvent` (UUID, parent_id, lifecycle) | `[DONE]` |
+| Call tree (`parent_event_id`) | `[DONE]` |
+| Hub-to-Hub peering | `[DONE]` |
+| `ACCOUNTING: BILLABLE_TO` / `BUDGET_LIMIT` | `[DONE]` |
+| Moma Points compute currency | `[TODO]` |
+
+---
+
+## Code-RAG (Text2SPL)
+
+| Feature | Status |
+|---------|--------|
+| `CodeRAGStore` — index `.spl` files as (description, source) pairs | `[PARTIAL]` — depends on embed provider |
+| `seed_from_dir()` / `seed_from_catalog()` | `[PARTIAL]` |
+| `retrieve(query, top_k)` | `[PARTIAL]` |
+| `text2spl.spl` workflow (intent → SPL) | `[TODO]` |
+
+---
+
+## splc Compiler
 
 | Target | Status | Notes |
-|---|---|---|
-| `self_refine.go` (`splc --target go` prototype) | `[DONE]` | stdlib only; calls Ollama REST API directly; compiles and runs end-to-end |
-| `go.mod` | `[DONE]` | module `spl30/self_refine`, Go 1.22, zero external deps |
-
-### Targets: Python / Liquid (`cookbook/*/targets/python/liquid/`)
-
-| Target | Status | Notes |
-|---|---|---|
-| `splc --target python/liquid` | `[TODO]` | Liquid AI LFM via Ollama; edge audio+image on ARM/laptop |
-
-### Targets: planned
-
-| Target | Status | Notes |
-|---|---|---|
-| `splc --target snap` (Ubuntu 26.04 Inference Snap) | `[TODO]` | v3.1 milestone — waiting for Ubuntu 26.04 GA |
-| `splc --target swift` (Apple M4/M5 Metal) | `[TODO]` | v3.2 milestone |
-| `splc --target edge` (ARM / Android AICore) | `[TODO]` | v3.3 milestone |
+|--------|--------|-------|
+| `splc --target go` (prototype) | `[PARTIAL]` | `self_refine.go` hand-crafted reference; compiler not yet written |
+| `splc --target ts` | `[TODO]` | SPL.ts is the hand-crafted reference target |
+| `splc --target python/langgraph` | `[PARTIAL]` | `self_refine_langgraph.py` hand-crafted |
+| `splc --target snap` | `[TODO]` | Ubuntu 26.04 |
+| `splc --target swift` | `[TODO]` | Apple M4/M5 |
+| NDD closure test (compiler correctness) | `[PARTIAL]` | `self_refine.go` not yet diff-tested against `spl3 run --adapter echo` |
 
 ---
 
-## Cookbook Recipes (`cookbook/`)
+## NDD Closure
 
-| Recipe | Status | Notes |
-|---|---|---|
-| `05_self_refine/self_refine.spl` | `[DONE]` | Draft → critique → refine loop; WHILE + EVALUATE |
-| `arxiv_morning_brief/` | `[DONE]` | Multi-workflow SPL3 recipe; `tools.py` + unit tests |
-| `code_pipeline/` | `[DONE]` | CALL composition demo: generate → review → improve |
-
----
-
-## Adapters (`spl/adapters/`)
-
-### Adapter Registry
-
-| Feature | Status | Notes |
-|---|---|---|
-| `register_adapter()` / `get_adapter()` / `list_adapters()` | `[DONE]` | Shadows SPL20's adapters `__init__`; `__path__` extension makes SPL20 adapters transparently accessible |
-| dd-llm bridge (anthropic, openai, ollama, openrouter, claude_cli, google) | `[DONE]` | Registered when `dd-llm` is installed; bespoke fallbacks when not |
-| SPL20 always-available adapters (echo, deepseek, qwen, bedrock, vertex, azure_openai) | `[DONE]` | Loaded via SPL20 `__path__` extension |
-
-### SPL30 New Adapters
-
-| Adapter | File | Backend | Status | Notes |
-|---|---|---|---|---|
-| `LiquidAdapter` | `spl/adapters/liquid.py` | Ollama or OpenRouter | `[DONE]` | LFM2-8B/24B + LFM-2.5; default `lfm2-8b` via Ollama |
-| `SnapAdapter` | `spl/adapters/snap.py` | Ubuntu AI Snap (future) | `[TODO placeholder]` | Raises `NotImplementedError`; UBUNTU_AI_URL env var reserved; full implementation awaits Ubuntu 26.04 GA |
-
-### Multi-Modal Adapter Architecture
-
-| Feature | File | Status | Notes |
-|---|---|---|---|
-| `MultiModalMixin` + `generate_multimodal()` | `spl/adapters/base_multimodal.py` | `[DONE]` | Default falls back to `generate()` with text extraction; warns on dropped non-text parts |
-| `supports_multimodal` property | `spl/adapters/base_multimodal.py` | `[DONE]` | `True` only if adapter overrides `generate_multimodal` |
-| `ContentPart` union (TextPart, ImagePart, AudioPart, VideoPart) | `spl/adapters/base_multimodal.py` | `[DONE]` | TypedDicts matching OpenAI / Anthropic content-array format |
-| `MultiModalAdapter` base class | `spl/adapters/base_multimodal.py` | `[DONE]` | `MultiModalMixin + LLMAdapter`; subclass for native multi-modal adapters |
-| `generate_multimodal()` override in `LiquidAdapter` | `spl/adapters/liquid.py` | `[DONE]` | Image (base64+URL) + audio (input_audio format) + video (frames flattened to image_url). Audio via Ollama logs a warning — confirmed only on OpenRouter LFM-2.5 |
-| `spl/codecs/` data transform layer | `spl/codecs/` | `[DONE]` | `encode_image` (PIL/path/bytes/URL→ImagePart), `encode_audio` (WAV/MP3→AudioPart, pydub for conversion), `encode_video` (cv2 primary, Pillow GIF fallback→list[ImagePart]) |
+| Feature | Status |
+|---------|--------|
+| `--adapter echo` (deterministic oracle) | `[DONE]` — all runtimes |
+| SPL20 self-validation (4 gaps found and closed) | `[DONE]` — see `SPL20/docs/NDD-closure/` |
+| `07_spec_judge.spl` (LLM-based fuzzy judge) | `[DONE]` — recipe 56 |
+| `splc` NDD closure test script | `[TODO]` |
+| Formal NDD closure module | `[TODO]` |
 
 ---
 
-## Multi-Modal Cookbook Recipes (`cookbook/`)
+## Cookbook Recipes
 
-New `multimodal` category. Recipes start at id 50 (after SPL20's last recipe id 49).
-Model availability as of 2026-04-06: Gemma 4 and LFM-2.5 both available via Ollama.
-
-| id | Recipe | Input types | Output types | Model(s) | Status | Notes |
-|---|---|---|---|---|---|---|
-| 50 | `image_caption` | `IMAGE` | `TEXT` | Gemma 4 via Ollama | `[DONE]` | 3 modes: caption / detailed / ocr; `run.py` + `.spl` |
-| 51 | `audio_summary` | `AUDIO` | `TEXT` | LFM-2.5 via OpenRouter | `[DONE]` | 3 modes: summary / transcribe / key_points; Ollama experimental |
-| 52 | `text_to_image` | `TEXT` | `IMAGE` | DALL-E 3 (OpenAI) + Gemma4 (prompt enhance) | `[DONE]` | Prompt enhancement optional; aspect/quality/style flags |
-| 53 | `text_to_speech` | `TEXT` | `AUDIO` | OpenAI TTS or system say/espeak | `[DONE]` | Script prep via Gemma4; gpt-4o-mini-tts instructions supported |
-| 54 | `image_restyle` | `IMAGE` + `TEXT` | `TEXT` + `IMAGE` | Gemma4 (vision) + DALL-E 3 | `[DONE]` | Vision → DALL-E prompt → new image; JSON intermediate |
-| 55 | `voice_dialogue` | `AUDIO` + `TEXT` | `TEXT` + `AUDIO` | LFM-2.5 (ASR) + Gemma4 (LLM) + OpenAI TTS | `[DONE]` | Full voice assistant pipeline: transcribe → respond → speak |
-| 56 | `visual_qa` | `IMAGE` | `TEXT` | Gemma 4 via Ollama | `[TODO]` | Multi-turn visual question answering with RAG context |
-| 57 | `video_scene` | `VIDEO` | `TEXT` | Gemma 4 via Ollama | `[TODO]` | Frame extraction via `spl/codecs/video_codec.py` |
-
----
-
-## Known Failures (10 tests)
-
-| Test | Root Cause | Fix |
-|---|---|---|
-| `TestNoneLiteral::test_none_parses` (×4) | SPL2 base parser rejects `NONE` as an expression token — SPL3Parser extension not yet wired into expression dispatch | Extend `spl/parser.py` to handle `NONE`/`NULL` tokens as `NoneLiteral` AST nodes |
-| `TestCodeRAGStore::*` (×5) | `spl/code_rag.py` hardcodes `sentence_transformers` as embed provider; not installed in spl2 | Change `_EMBED_PROVIDER = "ollama"` and `_EMBED_MODEL = "nomic-embed-text"` in `code_rag.py` |
-| `TestEventCallTree::test_build_raises_without_root` | `EventCallTree.build()` returns `None` instead of raising `ValueError` when no root event exists | Add `if root_node is None: raise ValueError(...)` guard in `build()` |
+| id | Recipe | Constructs exercised | Status |
+|----|--------|---------------------|--------|
+| 05 | `self_refine` | WORKFLOW, GENERATE, WHILE, EVALUATE, CALL, EXCEPTION | `[DONE]` |
+| 50 | `image_caption` | IMAGE param, multi-modal adapter | `[DONE]` |
+| 51 | `audio_summary` | AUDIO param | `[DONE]` |
+| 52 | `text_to_image` | GENERATE + external tool call | `[DONE]` |
+| 53 | `text_to_speech` | GENERATE + TTS adapter | `[DONE]` |
+| 54 | `image_restyle` | IMAGE + TEXT → IMAGE pipeline | `[DONE]` |
+| 55 | `voice_dialogue` | AUDIO + TEXT → TEXT + AUDIO pipeline | `[DONE]` |
+| 56 | `code_pipeline` | CALL chain, WHILE @item IN @items, write_file, clean_code, spec_judge | `[DONE]` |

@@ -1,10 +1,48 @@
 # SPL Future Work — Design Ideas
 
-*Captured: 2026-03-30. These ideas are beyond the current SPL 2.0 arXiv paper.*
+*Captured: 2026-03-30. Last updated: 2026-04-13.*
 
-**Implementation progress:** see [FEATURES.md](FEATURES.md) for what is currently implemented and tested. 
-- ROADMAP.md tracks *design intent*; 
+**Implementation progress:** see [FEATURES.md](FEATURES.md) for what is currently implemented and tested.
+- ROADMAP.md tracks *design intent*;
 - FEATURES.md tracks *build status* (test results, known failures, and what remains TODO).
+
+---
+
+## The Expanded SPL Vision (2026-04-13)
+
+SPL has grown from a prompt-query language into a three-axis research and engineering project:
+
+```
+Axis 1: Language Evolution
+  SPL v1.0 → v2.0 → v3.0 → v3.1 → ...
+  Python is the lab. Each version experiments with new constructs and methodology.
+  Stable constructs graduate to the multi-runtime tier.
+
+Axis 2: Research Contributions
+  NDD Closure  — deterministic oracle-based runtime correctness testing
+  Agentic Integrity — behavioral equivalence metric for AI safety
+  splc / DODA  — compile once, run anywhere across heterogeneous silicon
+
+Axis 3: Multi-Runtime Expansion
+  SPL (Python / SPL30)  — reference implementation, lab for new features
+  SPL.go                — production backend, Hub runtime, high-concurrency
+  SPL.ts                — browser + Node.js frontend, web application platform
+```
+
+**Feature flow:**
+```
+Python prototype → tested + stable → port to Go → port to TypeScript
+```
+
+Python is always first. Go follows when a feature is proven. TypeScript follows Go (or in parallel for browser-critical features). FEATURES.md tracks which tier each feature has reached.
+
+**The browser bridge:** SPL.ts unlocks a class of use cases impossible with Python or Go:
+- In-browser SPL execution (no server required)
+- Web-based SPL playground and editor
+- SPL-powered web applications (not just Streamlit)
+- Progressive Web Apps running local LLM workflows via WebLLM/WASM
+
+This is the moment SPL stops being a CLI tool and becomes a platform.
 
 ---
 
@@ -781,4 +819,767 @@ SPL30 (`spl` package) is a greenfield Python package. Unlike SPL20, it uses `dd-
 | File extraction | Raw UTF-8 read for `--dataset` | `dd-extract` (`PDFExtractor`, etc.) |
 
 This means SPL30's `pyproject.toml` lists `dd-llm`, `dd-vectordb`, `dd-embed`, `dd-db`, `dd-cache`, `dd-extract` as direct dependencies — not internal code.
+
+---
+
+## Multi-Runtime Expansion: SPL.ts (TypeScript / Browser / Node.js)
+
+*Added: 2026-04-13. SPL.ts is a complete hand-port of SPL 3.0 targeting browser + Node.js.*
+
+### What Exists Today
+
+SPL.ts (`SPL.ts/` repo, CLI: `spl-ts`) is a fully working SPL 3.0 implementation in TypeScript:
+- Lexer, parser, executor, stdlib (48 functions), registry, loader — all browser-safe
+- Adapters: `echo`, `ollama`, `openai`
+- 42 tests passing; `npm run test` is green
+
+The architecture constraint: **only `cli.ts` imports `node:fs` / `node:path`.** All other modules use only Web APIs (`fetch`, `console`, `Map`, `Promise`). This means the core runtime bundles to a browser-compatible ES module without modification.
+
+### SPL.ts is the `splc --target ts` Reference
+
+Every design decision in SPL.ts is a template for `splc --target ts`:
+- `const enum TokenType` → zero-overhead token constants in generated code
+- `FileReader = (path: string) => Promise<string>` → injected dependency (browser vs. Node.js)
+- `CommitSignal` control flow → RETURN without polluting the EXCEPTION channel
+- `Promise.all()` for `CALL PARALLEL` → maps directly to Go's `goroutine + WaitGroup`
+- Variable store as `Map<string, string>` → same loosely-typed runtime model as Python/Go
+
+Keep `[splc note]` annotations in SPL.ts source to document the template decisions.
+
+### NDD Closure Validation (Priority: High)
+
+SPL.ts correctness is validated by NDD closure — the same oracle used for SPL.go:
+
+```bash
+# Oracle (Python)
+spl3 run self_refine.spl --adapter echo > oracle.txt
+
+# Candidate (TypeScript)
+spl-ts run self_refine.spl --adapter echo > candidate.txt
+
+diff oracle.txt candidate.txt   # must be empty
+```
+
+Status: `[TODO]` — NDD closure diff test script not yet written.
+Target file: `SPL.ts/tests/ndd_closure.sh`
+
+### SPL.ts Roadmap
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Core runtime (lexer/parser/executor/stdlib) | `[DONE]` | 42 tests passing |
+| `echo`, `ollama`, `openai` adapters | `[DONE]` | fetch-based, browser-compatible |
+| NDD closure diff test against `spl3 --adapter echo` | `[TODO]` | Priority — validates correctness |
+| `anthropic` adapter | `[TODO]` | Mirrors Python/Go adapter |
+| `openrouter` adapter | `[TODO]` | Same OpenAI-compatible REST |
+| `FederatedRegistry` (local + Hub fallback) | `[TODO]` | Mirrors Python `FederatedRegistry` |
+| `HubRegistry` (REST-backed) | `[TODO]` | `POST /tasks` / `GET /tasks/{id}` |
+| Browser WASM bundle (`spl-ts.bundle.js`) | `[TODO]` | Zero-dependency browser embed |
+| `IMPORT` multi-file loading in browser context | `[TODO]` | Needs virtual FS / fetch-based resolver |
+| `NONE` / `NULL` literal full support | `[TODO]` | Parser gap inherited from SPL2 base |
+| `DATACLASS` type | `[TODO]` | SPL 3.1; requires `CREATE TYPE` in parser |
+
+---
+
+## NDD Closure as a Formal Module
+
+*Added: 2026-04-13. NDD closure is SPL's primary theoretical contribution — it should be a first-class testable artifact.*
+
+### What NDD Closure Means
+
+NDD = **Non-Determinism Decoupled**. The insight is that an LLM call is a pure, observable side effect:
+
+```
+echo adapter  →  f(prompt) = prompt          (deterministic, oracle)
+real adapter  →  f(prompt) = LLM(prompt)     (stochastic, candidate)
+```
+
+With `--adapter echo`, any SPL runtime becomes deterministic. Two runtimes running the same `.spl` against `echo` must produce identical output — if they differ, one has a bug. The `diff` of their echo-adapter outputs is the correctness judge.
+
+This is the same oracle/judge pattern used in:
+- Compiler correctness testing (reference interpreter vs. compiled binary)
+- Protocol conformance testing (reference implementation vs. candidate)
+- Database query planning (logical result vs. physical plan result)
+
+SPL's contribution is applying this to **agentic workflow runtimes** — where non-determinism (LLM calls) is the dominant source of unreliability.
+
+### Formal Module Design
+
+```
+spl3/ndd_closure/
+  oracle.py      — run workflow with echo adapter, capture output
+  judge.py       — diff two outputs; LLM-based fuzzy judge for non-exact cases
+  harness.py     — automated multi-recipe closure test (all cookbook recipes)
+  report.py      — structured JSON report (pass/fail/diff per recipe, per runtime)
+```
+
+The harness runs all cookbook recipes with `--adapter echo`, captures outputs from all runtimes (Python, Go, TypeScript), and diffs them pair-wise. Any non-empty diff is a test failure.
+
+### Roadmap
+
+| Feature | Status |
+|---------|--------|
+| `spl3 run --adapter echo` oracle | `[DONE]` — all runtimes |
+| Manual NDD closure tests (SPL20 gaps found and closed) | `[DONE]` |
+| `07_spec_judge.spl` LLM-based fuzzy judge | `[DONE]` — recipe 56 |
+| `ndd_closure.sh` automated test script (Python vs. Go) | `[TODO]` |
+| `ndd_closure.sh` TypeScript leg | `[TODO]` — after SPL.ts NDD test passes |
+| Formal `ndd_closure/` Python module | `[TODO]` |
+| Per-recipe JSON closure report | `[TODO]` |
+| Integration with CI (GitHub Actions or similar) | `[TODO]` |
+
+---
+
+## Agentic Integrity
+
+*Added: 2026-04-13. A research contribution to AI safety — the behavioral correctness metric for agentic systems.*
+
+### The Concept
+
+**Agentic integrity** is the property that an agentic workflow produces the same *logical* result across:
+- Different runtimes (Python, Go, TypeScript)
+- Different hardware (Intel, Apple Silicon, ARM)
+- Different LLM backends (Gemma 4, LFM-2, GPT-4o)
+- Different deployment modes (local, Hub, cloud)
+
+It is a **behavioral equivalence** metric: given the same logical specification (`.spl` file) and the same input, the observable output is invariant across all physical instantiations.
+
+NDD closure is the *operational definition* of agentic integrity: two runtimes have agentic integrity w.r.t. a workflow if their echo-adapter outputs are identical. A workflow that passes NDD closure on all runtimes is *agentically integral*.
+
+### Why This Is an AI Safety Contribution
+
+The dominant AI safety discourse focuses on model alignment (what the LLM does). Agentic integrity focuses on **workflow alignment** — what the *system* does, independent of which model powers it.
+
+Current AI safety gaps that agentic integrity addresses:
+
+| Gap | Agentic Integrity solution |
+|-----|--------------------------|
+| Runtime bugs manifest as behavioral differences, invisible in stochastic output | NDD closure catches them deterministically, model-independently |
+| Behavior changes when deploying from dev (GPU server) to prod (edge device) | Agentic integrity requirement: same `.spl` must produce same logical result |
+| "I trust the model but not the plumbing" | Verifiable claim: runtime is certified agentically integral against a reference |
+| No formal correctness criterion for compiled AI workflows | `splc` correctness = NDD closure between compiled artifact and SPL3 reference |
+| LLM benchmarks don't test the orchestration layer | NDD closure specifically isolates the orchestration layer from LLM variance |
+
+This is a contribution *orthogonal* to model alignment — it is the correctness theory for the **agentic layer** above the LLM.
+
+### The Three Levels of Agentic Integrity
+
+```
+Level 1: Runtime integrity
+  Same .spl → same echo output across Python, Go, TypeScript
+  Test: NDD closure diff
+
+Level 2: Compiler integrity
+  splc-compiled artifact → same echo output as SPL3 reference runtime
+  Test: NDD closure on compiled target
+
+Level 3: Deployment integrity
+  Same .spl → same logical behavior across hardware tiers (laptop, Mini-PC, cloud)
+  Test: NDD closure + semantic judge (recipe 56's spec_judge.spl pattern)
+```
+
+SPL currently has Level 1 partially validated, Level 2 defined but not yet automated, Level 3 as a research goal.
+
+### Agentic Integrity Metric (Formal)
+
+Define `AIM(W, R1, R2)` — the Agentic Integrity Metric for workflow W between runtimes R1 and R2:
+
+```
+AIM(W, R1, R2) = 1   if R1(W, echo) == R2(W, echo) for all inputs
+AIM(W, R1, R2) = 0   otherwise (divergence detected, with diff as evidence)
+```
+
+For workflows with stochastic elements that cannot be fully determinized by echo:
+
+```
+AIM_fuzzy(W, R1, R2, judge) = judge(R1(W, real), R2(W, real)) ∈ [0, 1]
+```
+
+where `judge` is an LLM-based semantic equivalence judge (the `07_spec_judge.spl` pattern).
+
+This metric can be computed, tracked over time, and reported — making agentic integrity measurable, not just claimed.
+
+### Research Agenda
+
+1. **Formal definition paper** — define agentic integrity precisely, position against related work (compiler correctness, protocol conformance, LLM evaluation)
+2. **NDD closure module** — `spl3/ndd_closure/` Python package; automate AIM computation for all cookbook recipes across all runtimes
+3. **AIM over time** — track AIM as the codebase evolves; regressions in AIM signal porting divergence before they manifest in production
+4. **Deployment integrity experiments** — run same workflows on Intel Mini-PC, Mac M4, cloud; measure semantic equivalence with `spec_judge.spl`
+5. **Safety paper** — position agentic integrity as a complementary dimension to model alignment: "alignment of the orchestration layer"
+
+### Literature Connections
+
+- **CompCert / certified compilation** — formal compiler correctness; `splc` has the same obligation
+- **Observational equivalence** — programs are equivalent if no observer distinguishes them; echo adapter is the observer
+- **Property-based testing (QuickCheck, Hypothesis)** — oracle-based random testing; NDD closure is deterministic oracle testing
+- **LLM evaluation methodology** — why output-based benchmarks fail (stochastic); why oracle-based testing is the alternative
+- **AI safety specification alignment** — `.spl` as a behavioral specification; agentic integrity as its verification
+- **Protocol conformance testing (RFC test suites)** — NDD closure is to SPL runtimes what RFC conformance tests are to network stacks
+
+---
+
+## splc Compiler: Next Steps
+
+*Updated: 2026-04-13. Complements the DODA section above with concrete implementation priorities.*
+
+### Current State
+
+| Target | Status | Notes |
+|--------|--------|-------|
+| `splc --target go` | `[PARTIAL]` | `self_refine.go` hand-crafted reference; compiler not yet written |
+| `splc --target ts` | `[PARTIAL]` | SPL.ts is the hand-crafted reference; every design decision annotated |
+| `splc --target python/langgraph` | `[PARTIAL]` | `self_refine_langgraph.py` hand-crafted |
+| `splc --target snap` | `[TODO]` | Ubuntu 26.04 |
+| `splc --target swift` | `[TODO]` | Apple M4/M5 |
+| NDD closure test (compiler correctness) | `[TODO]` | Verify compiled artifacts against `spl3 --adapter echo` |
+
+### What "Writing splc" Means
+
+`splc` is a **source-to-source transpiler**: `.spl` → target language (Go, TypeScript, Swift, etc.). The hand-crafted ports (SPL.go, SPL.ts, `self_refine_langgraph.py`) are the reference implementations — they define what the compiler must generate.
+
+The implementation approach:
+1. Define an **IR** (intermediate representation) for SPL 3.0 AST nodes
+2. Write a **code generator** for each target language, walking the IR
+3. Test each generator's output against the hand-crafted reference (structural diff)
+4. Validate correctness with NDD closure (behavioral diff)
+
+### Priority: Go Target First
+
+`splc --target go` is the highest-priority target because:
+- SPL.go is already complete and NDD-validated (most recipes passing)
+- Go is the Hub runtime — compiled Go workflows can run as Hub-native tasks without the Python interpreter
+- The Go AST (`go/ast`) and `text/template` make code generation straightforward
+- Intel Mini-PC deployment (`spl3 run` → `spl-go run`) is the immediate DODA use case
+
+### TypeScript Target Second
+
+`splc --target ts` benefits from SPL.ts's `[splc note]` annotations — the template is already documented. The generated TypeScript should be browser-runnable, unlocking SPL workflows as web components.
+
+### Recipe-Driven Development
+
+Each `splc` target is validated by generating all cookbook recipes and running NDD closure. The recipe set provides immediate, comprehensive test coverage without writing separate test cases.
+
+---
+
+## SPL 3.1: DATACLASS Type
+
+*Added: 2026-04-13. Deferred from SPL 3.0 — requires stable CALL composition runtime first.*
+
+### Design
+
+```sql
+-- Type definition (DDL)
+CREATE TYPE CodeReview AS (
+    score   FLOAT,
+    verdict TEXT,
+    passed  BOOL
+)
+
+-- Usage in workflow
+WORKFLOW review_code
+    INPUT:  @code TEXT
+    OUTPUT: @review CodeReview
+DO
+    GENERATE reviewer(@code) WITH FORMAT JSON SCHEMA CodeReview INTO @review
+    RETURN @review
+END
+
+-- Caller accesses fields via JSON path
+CALL review_code(@code) INTO @review
+@score := json_get(@review, 'score')
+```
+
+### Implementation Scope
+
+| Change | File | Notes |
+|--------|------|-------|
+| `CreateTypeStatement` AST node | `ast_nodes.py` | DDL statement |
+| `TypeRegistry` in executor | `executor.py` | `name → {field: type}` schema map |
+| `WITH FORMAT JSON SCHEMA T` clause | parser + executor | Injects JSON schema into prompt |
+| Field access via `json_get()` | stdlib | Already exists; use as accessor |
+| Type-checked RETURN for DATACLASS OUTPUT | executor | Validate against schema at runtime |
+
+### Dependencies
+
+DATACLASS requires `CALL` composition to be stable (done in SPL 3.0) and `WITH FORMAT JSON SCHEMA` to be reliable across LLM adapters. The latter depends on structured output support, which varies by model. Defer to SPL 3.1 when structured output is standardized across Ollama, OpenAI, and Anthropic adapters.
+
+---
+
+## Momagrid: Moma Points Compute Currency
+
+*Added: 2026-04-13. The economic layer for the Compute OS.*
+
+### Design (Recap)
+
+Moma Points are the compute currency of the Momagrid internet. They flow from:
+- Workflow submitters (consumers) → Hub operators (providers)
+- Across Hub-to-Hub peering boundaries (inter-Hub settlement)
+
+The existing `ACCOUNTING: BILLABLE_TO` and `BUDGET_LIMIT` clauses in SPL are the user-facing interface. The Hub's event log already attributes every LLM call to `event_id → requester_id`.
+
+### Implementation Roadmap
+
+| Feature | Status | Notes |
+|---------|--------|-------|
+| `ACCOUNTING: BILLABLE_TO` / `BUDGET_LIMIT` parsing | `[DONE]` | SPL 2.0 |
+| Event-level cost attribution in Hub event log | `[TODO]` | `event_id → cost_moma_points` |
+| Per-call cost metering (token count × rate) | `[TODO]` | Requires token usage from LLM response |
+| Hub wallet balance + debit API | `[TODO]` | `GET /wallet`, `POST /wallet/debit` |
+| Inter-Hub settlement protocol | `[TODO]` | Peering payment for cross-Hub CALL dispatch |
+| Moma Points faucet for development | `[TODO]` | Test allocation endpoint |
+| `BUDGET_LIMIT` enforcement at Hub | `[TODO]` | Reject task if budget exceeded |
+
+---
+
+## Feature Graduation Policy: Python → Go → TypeScript
+
+*Added: 2026-04-13. Makes the "Python is the lab" strategy explicit and manageable.*
+
+### The Three Tiers
+
+| Tier | Criteria | Runtimes |
+|------|----------|----------|
+| **Experimental** | Implemented in Python, no tests or known gaps | Python only |
+| **Stable** | Implemented in Python, tests passing, NDD-validated, no known gaps | Python |
+| **Multi-Runtime** | Ported to Go and TypeScript, NDD closure passes on all three | Python + Go + TypeScript |
+
+A feature moves from Experimental → Stable when:
+1. At least one cookbook recipe exercises it end-to-end
+2. The relevant unit tests pass (`pytest -k <feature>`)
+3. NDD closure passes for that recipe (`spl3 run --adapter echo` diff is empty)
+
+A feature moves from Stable → Multi-Runtime when:
+1. Ported to SPL.go — NDD closure passes
+2. Ported to SPL.ts — NDD closure passes
+3. FEATURES.md updated with `[DONE]` across all three columns
+
+### What This Means in Practice
+
+- **Don't port prematurely.** New constructs (e.g., DATACLASS, STREAM INTO) stay Python-only until they are stable. Porting unstable features causes thrash in all three repos simultaneously.
+- **Don't let Go/TypeScript fall behind indefinitely.** Once a feature has been stable in Python for two or more cookbook recipes, it is ready to port.
+- **NDD closure is the promotion gate.** No feature graduates to Multi-Runtime without a passing NDD closure test in all runtimes.
+
+### Current Tier Status (2026-04-13)
+
+| Feature | Python | Go | TypeScript | Tier |
+|---------|--------|----|------------|------|
+| SPL 1.0 prompt/query constructs | `[DONE]` | `[DONE]` | `[DONE]` | Multi-Runtime |
+| SPL 2.0 workflow/procedural | `[DONE]` | `[DONE]` | `[DONE]` | Multi-Runtime |
+| SPL 3.0 IMPORT, CALL PARALLEL | `[DONE]` | `[DONE]` | `[DONE]` | Multi-Runtime |
+| Multi-modal (IMAGE/AUDIO/VIDEO) | `[DONE]` | `[PARTIAL]` | `[TODO]` | Stable |
+| NDD closure automated test | `[PARTIAL]` | `[PARTIAL]` | `[TODO]` | Experimental |
+| FederatedRegistry / HubRegistry | `[DONE]` | `[DONE]` | `[TODO]` | Stable |
+| DATACLASS / CREATE TYPE | `[TODO]` | `[TODO]` | `[TODO]` | Experimental (design) |
+| splc compiler | `[PARTIAL]` | `[PARTIAL]` | `[TODO]` | Experimental |
+
+---
+
+## SPL Language Specification: text2SPL + Code-RAG as the Living Spec
+
+*Added: 2026-04-13. The language spec is not a static document — it is the text2SPL system itself.*
+
+### The Insight
+
+Traditional languages (JavaScript/ECMAScript, SQL/ISO) separate the language spec from implementations. SPL takes a different path: the **cookbook recipes are the executable specification**, and **text2SPL + Code-RAG is the living spec engine**.
+
+- 60+ cookbook recipes covering all SPL constructs → the empirical corpus
+- Code-RAG indexes each recipe as `(description, source)` pair → the spec is queryable
+- `spl3 code-rag query "WHILE refinement loop"` → retrieves canonical examples
+- text2SPL generates new SPL from intent by retrieving the closest pattern — the spec guides generation, not just documentation
+
+This means the spec is always in sync with the implementation (recipes are tested against the runtime) and is directly useful for generation (Code-RAG serves the spec at generation time).
+
+### Fine-Tuning for a Robust text2SPL
+
+The next step beyond RAG retrieval is **fine-tuning an open-source model on the SPL corpus**:
+
+- Tool: [unsloth.ai](https://unsloth.ai) — efficient LoRA fine-tuning on consumer hardware
+- Base model: Gemma 3 or LFM-2 (already in use via Ollama)
+- Training data: all cookbook `.spl` files paired with their descriptions and comments
+- Expected outcome: a model that generates syntactically correct, idiomatic SPL from natural language, without retrieval
+
+| Approach | Pros | Cons |
+|----------|------|------|
+| Code-RAG (current) | No training; works today; generalizes to new patterns via retrieval | Quality limited by retrieval accuracy; struggles with novel compositions |
+| Fine-tuned model | Robust generation; understands SPL idioms natively | Requires training data volume; needs periodic retraining as language evolves |
+| Both (RAG + fine-tune) | Fine-tuned base + RAG for novel patterns | Best results; correct approach once corpus is large enough |
+
+Target: fine-tune once the cookbook reaches 100+ recipes (enough training signal).
+
+### NDD Closure as Conformance Test
+
+NDD closure is the mechanical spec conformance test: a runtime is "spec-conformant" if it passes NDD closure on all cookbook recipes with `--adapter echo`. No separate test suite needed — the recipes *are* the test suite.
+
+---
+
+## Developer Ecosystem: Book, arXiv, and Two Untapped Audiences
+
+*Added: 2026-04-13. SPL's adoption path is through academic publishing, open source, and a book targeting two underserved communities.*
+
+### The Two Target Audiences
+
+#### 1. SQL Professionals (30–50 million worldwide)
+
+Every AI orchestration framework today — LangGraph, LangChain, AutoGen, CrewAI — targets Python developers. Nobody is seriously pursuing the SQL community. SPL is positioned to own that space.
+
+The mental model transfer is direct:
+
+| SQL | SPL | What it does |
+|-----|-----|--------------|
+| `SELECT col FROM table WHERE cond` | `SELECT expr FROM source WHERE cond` | Declarative data query |
+| `WITH cte AS (...)` | `WITH cte AS (...)` | Composable sub-queries |
+| `INSERT INTO` | `STORE RESULT IN memory.key` | Persist results |
+| `CASE WHEN ... THEN ... END` | `EVALUATE @var WHEN ... THEN ... END` | Conditional branching |
+| Stored procedure | `WORKFLOW name DO ... END` | Named, reusable logic |
+| Function | `CREATE FUNCTION name(...) AS $$ ... $$` | Prompt templates |
+
+A data professional already knows 70% of SPL. The book's message to this audience: *the language you know is now an AI orchestration language*.
+
+SQL is a global language — taught in CS programs worldwide, used in banking, finance, government, and enterprise on every continent. This is not a niche audience. It is the largest single group of developers who have been systematically excluded from the "AI era" because all its tooling is Python-first and imperative.
+
+#### 2. The Global Community Beyond Big Tech Cloud
+
+China, India, Brazil, Nigeria, Indonesia, Vietnam, Egypt, Mexico, and every developer community where cloud AI costs are prohibitive or where data sovereignty makes local inference preferable — all have large, SQL-fluent data professional communities. They know SQL deeply. They need AI tools. And they have strong reasons to run inference locally.
+
+**China deserves explicit mention.** China has one of the largest developer populations in the world, a deep SQL/data engineering culture (Alibaba, Tencent, ByteDance built on SQL-first data stacks), and has already produced leading open-source models — DeepSeek and Qwen are both in SPL's adapter list today. Chinese developers have strong data sovereignty motivations for local inference that align perfectly with the SPL + Ollama stack. The Qwen adapter means a Chinese developer can run SPL workflows entirely on domestic open-source models with zero cloud dependency.
+
+The parallel to the LAMP stack era is precise:
+- **LAMP** (Linux + Apache + MySQL + PHP): free, composable, ran on commodity hardware → democratized web development globally → the world became a contributor base
+- **SPL + Ollama + Gemma/Qwen/LFM + Momagrid**: free, composable, runs on consumer hardware → democratizes AI development globally → the world becomes a contributor base
+
+The Momahub Moment blog already named the problem: *"AI capability rationed by ability to pay."* SPL + local inference is the answer. Zero cloud costs. No API keys. No monthly bills.
+
+**Momagrid as economic inclusion:** Node operators anywhere in the world can join Momagrid and earn Moma Points by contributing inference compute. The decentralized network is not just technically egalitarian — it is economically egalitarian. Idle compute in Lagos, Jakarta, São Paulo, and Shenzhen contributing to and earning from the global inference network.
+
+#### The Overlap
+
+The two audiences are not separate — they converge at the most impactful point:
+
+```
+SQL-fluent data professional outside the Big Tech cloud ecosystem
+= knows the language + needs the tool + motivated to run locally
+= ideal SPL contributor and Momagrid node operator
+```
+
+This is not a coincidence. This is the community SPL is built for.
+
+### The Publishing Strategy
+
+SPL is being built in public from day one:
+- **All repos MIT / Apache 2 licensed** — open for use, contribution, and derivative works
+- **arXiv papers** — each major innovation (SPL 2.0, NDD closure, Agentic Integrity, DODA/splc) published as a preprint; citable, discoverable, indexable by Google Scholar and Semantic Scholar
+- **Book project** — comprehensive reference for SPL practitioners; SQL-first framing; accessible to non-Python backgrounds
+
+Recognition and adoption of new languages takes years, not months. The academic route (arXiv → conference → journal) builds the citation foundation that makes SPL a legitimate research contribution. The book reaches the practitioner community that papers don't. Together they are mutually reinforcing: practitioners cite the paper to legitimize their use; researchers read the book to understand the practice.
+
+### Book Outline (Draft Framing)
+
+| Chapter | Topic | SQL Audience Hook |
+|---------|-------|-------------------|
+| 1 | What is SPL? | "SQL for LLMs — you already know the syntax" |
+| 2 | SPL 1.0: Prompt Queries | SELECT + GENERATE = a query that thinks |
+| 3 | SPL 2.0: Workflows | Stored procedures for AI pipelines |
+| 4 | SPL 3.0: Composition | Microservice orchestration in 10 lines |
+| 5 | NDD Closure | Testing AI workflows like testing SQL queries |
+| 6 | Multi-Runtime | spl3 / spl-go / spl-ts — one language, any platform |
+| 7 | Momagrid | Running SPL on a decentralized inference grid |
+| 8 | AI@Home | Your Mini-PC as an AI node |
+| 9 | Liquid + Snap adapters | Edge devices and Ubuntu deployment |
+| 10 | DODA + splc | Compile once, deploy anywhere |
+| 11 | Building your own cookbook | RAG, text2SPL, contributing recipes |
+| 12 | Agentic Integrity | Why correctness matters for AI safety |
+
+### Accessibility Considerations
+
+The book and ecosystem should be accessible along two dimensions:
+- **Technical**: SQL-first, not Python-first; minimal installation (Ollama + `spl3` or `spl-ts` in browser)
+- **Economic**: local inference = zero ongoing cost; Momagrid means you don't need to *own* hardware to participate; browser runtime means a phone is sufficient to run SPL
+
+### What SPL.ts Adds to Reach
+
+Each runtime opens SPL to a new audience segment:
+- `spl3` → Python/data science community
+- `spl-go` → backend engineers and Hub operators
+- `spl-ts` → JavaScript/TypeScript developers (largest developer population globally), and critically: **browser users with no installation at all**
+
+A browser-based SPL playground lowers the barrier from "install Python + Ollama" to "open a URL." For the Global South audience specifically, this is the difference between reachable and unreachable.
+
+---
+
+## New Adapter Roadmap: Liquid and Snap
+
+*Added: 2026-04-13. Two platform-specific adapters that extend SPL to new runtime environments and modalities.*
+
+### Why These Two Matter
+
+Every adapter in SPL is a gateway to a new platform:
+- `echo` → deterministic testing (NDD closure oracle)
+- `ollama` → local inference on any hardware
+- `openai` → cloud-compatible REST (works with OpenAI, Groq, Together, Mistral)
+- `anthropic` / `claude_cli` → Anthropic API and Claude tooling
+
+The next two adapters open SPL to **new hardware classes** and **new modalities**:
+- `liquid` → Liquid AI LFM models; audio + video on edge devices
+- `snap` → Ubuntu's upcoming inference snap; immutable, installable AI runtime
+
+### Liquid Adapter (`liquid`) — Edge Multimodal
+
+**Model family:** Liquid AI LFM (Language-Free Model) — LFM-2 2.6B, LFM-2 8B, LFM-2 24B, LFM-2.5
+**Access:** Ollama (local) and OpenRouter (cloud)
+**Unique capability:** Native audio + video modality support — not just text and image
+
+```sql
+-- LFM-2.5 audio summary via liquid adapter
+WORKFLOW transcribe_and_summarize
+    INPUT:  @audio_file AUDIO
+    OUTPUT: @summary TEXT
+DO
+    GENERATE audio_summarizer(@audio_file) INTO @summary
+    RETURN @summary
+END
+```
+
+**Why Liquid AI specifically:**
+Liquid's state-space architecture (not transformer-based) is designed for efficient on-device inference. LFM-2 2.6B runs on devices with 4GB RAM — phones, Raspberry Pi, IoT. This is the edge deployment tier in the DODA matrix that no transformer model has reached at comparable quality.
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| `LiquidAdapter` base class (Python) | `[DONE]` | Ollama + OpenRouter backends |
+| `MultiModalMixin` + `ContentPart` types | `[DONE]` | `IMAGE`, `AUDIO`, `VIDEO` content parts |
+| `generate_multimodal()` override | `[TODO]` | Full audio/video content-array pass-through |
+| `spl/codecs/audio_codec.py` | `[TODO]` | WAV/MP3 → base64 `AudioPart` |
+| `spl/codecs/video_codec.py` | `[TODO]` | Video frames → list of `ImagePart` |
+| Cookbook recipe 51 (`audio_summary`) | `[DONE]` | End-to-end audio workflow |
+| Liquid adapter in SPL.go | `[TODO]` | Port from Python |
+| Liquid adapter in SPL.ts | `[TODO]` | Browser-compatible audio encoding |
+| NDD closure test with Liquid model | `[TODO]` | Echo adapter still works; real test with LFM-2 |
+
+### Snap Adapter (`snap`) — Ubuntu Immutable Inference
+
+**Platform:** Ubuntu 26.04 "Resolute Raccoon" (expected H1 2026)
+**Mechanism:** `ubuntu-ai` inference snap — model weights + runtime as a single installable package
+**CLI target:** `splc --target snap` produces a `.snap` package (compiled workflow + model)
+
+```bash
+# Future: install an SPL workflow as a native Ubuntu snap
+sudo snap install arxiv-morning-brief --channel=stable
+arxiv-morning-brief run --param topic="AI safety"
+```
+
+This is the Ubuntu equivalent of an iPhone App Store app: one-click install, sandboxed, auto-updates, hardware-accelerated (NPU/GPU via snap interface).
+
+**Why this matters for Momagrid:**
+Snap packages are distribution-agnostic and auto-updating. A Momagrid node on Ubuntu 26.04 could receive workflow updates as snap revisions — no manual deployment, no version drift. The snap is the atom of the Momagrid network on Ubuntu.
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| `SnapAdapter` placeholder | `[DONE]` | Documented; `UBUNTU_AI_URL` env var reserved |
+| Ubuntu 26.04 GA | `[TODO]` | Canonical target: H1 2026 |
+| `ubuntu-ai` snap API spec | `[TODO]` | Awaiting Canonical publication |
+| `splc --target snap` compiler | `[TODO]` | Blocked on snap API + Ubuntu GA |
+| End-to-end snap install test | `[TODO]` | Cook when Ubuntu 26.04 is available |
+| Momagrid node snap auto-update | `[TODO]` | Snap revisions as workflow deployment channel |
+
+### Platform-to-Adapter Matrix
+
+The target is the full range of **consumer-grade CPU/GPU/NPU** hardware — not specific form factors. Any device a person already owns is a potential SPL node.
+
+| Device Class | Example Hardware | Model | Adapter | SPL Target | Status |
+|--------------|-----------------|-------|---------|-----------|--------|
+| Consumer GPU (gaming PC) | RTX 4070/4090 | Gemma 4 27B, LFM-2 24B | `ollama` | `spl-go` / `spl3` | `[DONE]` |
+| Consumer CPU (Mini-PC) | Intel N100/N305 | Gemma 4 E4B, LFM-2 2.6B | `ollama` | `spl-go` / `spl3` | `[DONE]` |
+| Apple Silicon (laptop/desktop) | M4 / M5 (unified memory) | Gemma 4 27B, LFM-2 24B | `ollama` | `spl3` / `spl-ts` | `[DONE]` |
+| ARM edge / low-power CPU | Raspberry Pi 5, Laptop | LFM-2 2.6B | `liquid` | `spl3` / `spl-go` | `[PARTIAL]` |
+| Phone / IoT (4GB RAM) | Android, ARM NPU | LFM-2 2.6B | `liquid` (edge) | `splc --target edge` | `[TODO]` |
+| Ubuntu 26.04 (any CPU/GPU) | Any Ubuntu machine | LFM-2 2.6B via snap | `snap` | `splc --target snap` | `[TODO]` |
+| Browser (any device) | Any phone or laptop | WebLLM WASM | `wasm` (future) | `spl-ts` bundle | `[TODO]` |
+| Cloud (fallback) | OpenAI / Anthropic / OpenRouter | GPT-4o / Claude / Qwen | `openai` / `anthropic` | any | `[DONE]` |
+
+**The principle:** SPL runs where the hardware is, not where the cloud is. Consumer-grade CPU, GPU, and the emerging NPU generation (Qualcomm, Apple, Intel) are all first-class targets. The user does not need to upgrade hardware — they need software that meets them where they are.
+
+---
+
+## SPL.ts Browser Platform (Technical Roadmap)
+
+*Added: 2026-04-13. The technical plan for browser-native SPL execution.*
+
+### What SPL.ts Enables
+
+The architecture constraint (zero Node.js APIs in core) was a deliberate design choice. Its consequence: the SPL runtime is a browser-native JavaScript library. Any web page can embed it.
+
+```html
+<script type="module">
+  import { Lexer, Parser, Executor, EchoAdapter, Registry } from 'spl-ts';
+  // Run SPL workflows in the browser — no server, no Python, no Go
+</script>
+```
+
+### Web Platform Roadmap
+
+| Milestone | Description | Status |
+|-----------|-------------|--------|
+| `spl-ts` npm package (public) | Publish to npm; browser and Node.js entry points | `[TODO]` |
+| WASM-compiled LLM backend | WebLLM / llama.cpp WASM as an SPL adapter | `[TODO]` |
+| In-browser SPL playground | Monaco editor + EchoAdapter + live output | `[TODO]` |
+| Progressive Web App shell | Installable SPL workflow runner (desktop PWA) | `[TODO]` |
+| Web-based workflow catalog | Browse, fork, and run cookbook recipes in browser | `[TODO]` |
+| SPL-powered web components | `<spl-workflow>` custom element for embedding workflows in any web page | `[TODO]` |
+
+### The WASM Adapter
+
+A `WasmAdapter` that wraps WebLLM (llama.cpp compiled to WASM) would make SPL fully self-contained in the browser — no network calls, no API keys. This is the zero-dependency edge deployment vision applied to the web:
+
+```
+Browser tab → SPL.ts runtime → WasmAdapter → llama.cpp WASM → local inference
+```
+
+This mirrors the Ubuntu Snap adapter vision (weights + runtime as one artifact), but for the browser tab instead of the OS package.
+
+### In-Browser SPL Playground (Priority: High)
+
+The highest-leverage developer experience investment:
+1. Monaco editor with SPL syntax highlighting
+2. EchoAdapter for instant, deterministic output (no LLM key required)
+3. OllamaAdapter via `OLLAMA_ORIGINS=*` for users with local Ollama
+4. OpenAI-compatible adapter for users with API keys
+5. Pre-loaded cookbook recipes as examples
+
+This is the fastest path to SPL discoverability outside the current circle of contributors.
+
+### Streamlit is Not the Web
+
+The existing Streamlit UI is a Python process — it requires the server-side Python runtime, cannot be deployed as a static site, and is not mobile-friendly. SPL.ts + a React/Vue/Svelte frontend is the path to:
+- GitHub Pages deployable documentation with live examples
+- Mobile-responsive SPL playground
+- Embeddable workflow widgets for documentation sites
+
+---
+
+## The AI Quartet: Ecosystem and Operational Domain
+
+*Added: 2026-04-13. The four pillars of the SPL ecosystem, and how they compose into a coherent whole.*
+
+### The Four Pillars
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    SPL Ecosystem                            │
+│                                                             │
+│  Language Layer         Runtime Layer                       │
+│  ─────────────          ─────────────                       │
+│  SPL (Python / SPL30)   spl3      — reference, lab          │
+│  SPL.go                 spl-go    — backend, Hub runtime    │
+│  SPL.ts                 spl-ts    — browser, Node.js        │
+│                                                             │
+│  Infrastructure Layer                                       │
+│  ────────────────────                                       │
+│  Momagrid               Hub       — decentralized           │
+│                                     inference network       │
+└─────────────────────────────────────────────────────────────┘
+```
+
+Each pillar is independently useful but gains power from the others:
+- A `.spl` file runs on `spl3`, `spl-go`, or `spl-ts` identically (NDD closure guarantee)
+- Any SPL runtime can dispatch to a Momagrid Hub — local execution or distributed, same syntax
+- Momagrid connects AI@Home nodes into a larger inference network — without any cloud dependency
+
+This is a **one-person shop** achievement: three production runtimes, a distributed infrastructure layer, a 60+ recipe cookbook, and active arXiv publication — all open source (MIT / Apache 2), all running on commodity hardware.
+
+### Momagrid as Decentralized Inference Network
+
+*See also: "Momagrid as a Compute OS" section above for the OS analogy.*
+
+The AI@Home vision (blog: ["AI@Home with Gemma"](https://medium.com/@wen.g.gong/ai-home-with-gemma-369fa8c27e2b)) establishes the premise:
+
+> "The AI that once lived only in data centers now runs in your garage, your village, your workplace."
+
+A $500 Intel Mini-PC running Ollama + Gemma 4 is a fully capable AI inference node. The gap between "one home node" and "a network of home nodes" is exactly what Momagrid fills.
+
+```
+AI@Home Node (Mini-PC, Ollama + spl-go)
+        │
+        ▼  registers with Hub
+  Momagrid Hub  ◄──── peer ────►  Another Hub
+        │
+  ┌─────┴─────┐
+  Node A      Node B       (GPU nodes, home machines, edge devices)
+```
+
+**Momagrid is the infrastructure that turns AI@Home nodes into a decentralized inference network.** Each node:
+- Runs `spl-go` or `spl3` as the workflow executor
+- Registers available models and VRAM with the Hub (`WITH VRAM n`)
+- Accepts tasks dispatched by the Hub's scheduler
+- Can peer with other Hubs for cross-network workflow dispatch
+
+No central cloud required. No API keys. No monthly bills. The compute is owned by the people running it.
+
+### The Decentralized Inference Stack
+
+| Layer | Component | Role |
+|-------|-----------|------|
+| Model | Gemma 4, LFM-2, Llama 3 via Ollama | Inference engine on local hardware |
+| Workflow | SPL 3.0 (`.spl` files) | Declarative agentic logic |
+| Runtime | `spl3` / `spl-go` / `spl-ts` | Executes SPL on any OS/hardware |
+| Node | AI@Home machine (Mini-PC, Mac, Laptop) | Physical compute unit |
+| Network | Momagrid Hub + Hub-to-Hub peering | Distributed task dispatch |
+| Economy | Moma Points | Compute currency for node operators |
+| Frontend | SPL.ts in browser | User interface without cloud dependency |
+
+### Origin: The Momahub Moment (March 8, 2026)
+
+The vision predates SPL v2.0. Blog: ["The Momahub Moment"](https://medium.com/@wen.g.gong/the-momahub-moment-df852c42f3da) (published 2026-03-08).
+
+The core argument: hundreds of millions of consumer-grade GPUs in gaming PCs worldwide sit idle. Frontier AI labs are building prohibitively expensive centralized infrastructure. Momahub applies the same logic as GNU/Linux (democratized the OS) and the World Wide Web (democratized information) — unlock latent value from already-purchased, idle hardware through a coordination protocol. One credit per 1,000 tokens processed; a gaming GPU running 8 hours costs ~$0.15 in electricity.
+
+Then on 2026-04-13, Google released Gemma 4. A state-of-the-art multimodal model — free, Apache 2.0 licensed, running locally on Ollama on a consumer-grade Mini-PC. The vision became a demonstration: ["AI@Home with Gemma"](https://medium.com/@wen.g.gong/ai-home-with-gemma-369fa8c27e2b).
+
+The seed was planted in March. The tree is growing.
+
+### Why This Is Meaningful
+
+The standard AI deployment story is: cloud → API → application. Every inference call sends data to a third party and costs money.
+
+The Momagrid story inverts this: **the compute is at the edge, the network is decentralized, the data never leaves the owner's hardware.** This matters for:
+- **Privacy**: health workers, legal professionals, journalists — data stays local
+- **Cost**: zero inference cost beyond electricity for node operators
+- **Resilience**: no single point of failure; Hub-to-Hub peering means the network routes around outages
+- **Sovereignty**: countries, communities, and individuals own their AI compute
+
+SPL is the language of this network. Momagrid is the operating system. The AI quartet makes it real.
+
+### Operational Roadmap for Momagrid
+
+| Milestone | Status | Notes |
+|-----------|--------|-------|
+| Single Hub + multiple GPU nodes | `[DONE]` | Used in production for cookbook runs |
+| Hub REST API (`POST /tasks`, `GET /tasks/{id}`) | `[DONE]` | Protocol stable |
+| `WorkflowInvocationEvent` call tree | `[DONE]` | Parent-child event linkage |
+| Hub-to-Hub peering (local LAN) | `[DONE]` | Two Hubs on same network |
+| Hub-to-Hub peering (WAN / internet) | `[TODO]` | Validate with two internet-connected Hubs |
+| Node health / VRAM reporting to Hub | `[TODO]` | Real-time node capability advertising |
+| Hub workflow registry (name → definition) | `[TODO]` | Persistent workflow store, not just in-memory |
+| Moma Points metering | `[TODO]` | Per-call token counting → cost attribution |
+| Moma Points wallet + settlement | `[TODO]` | Node operator payment |
+| Public Hub discovery / DNS | `[TODO]` | Find peer Hubs by name, not just IP |
+| `spl-ts` Hub adapter | `[TODO]` | Browser workflows dispatching to Momagrid |
+| Node auto-registration script | `[TODO]` | `curl install.momagrid.sh | bash` for new nodes |
+
+---
+
+## Cookbook Expansion
+
+*Added: 2026-04-13. Next recipes to build for SPL 3.0 coverage.*
+
+| id | Recipe | Target | Constructs exercised | Priority |
+|----|--------|--------|---------------------|----------|
+| 57 | `debate_loop` | SPL30 | Two-agent debate: CALL PARALLEL, WHILE refinement, EVALUATE judge | High |
+| 58 | `research_summarizer` | SPL30 | RAG + GENERATE + multi-doc WHILE iteration | High |
+| 59 | `spec_to_code` | SPL30 + splc | text2SPL pipeline end-to-end (NDD closure anchor for splc) | High |
+| 60 | `hub_dispatch` | SPL30 + SPL.go | CALL across Hub boundary; validates Hub-to-Hub peering | Medium |
+| 61 | `browser_chat` | SPL.ts | Browser-native SPL workflow; validates WASM bundle | Medium |
+| 62 | `multimodal_pipeline` | SPL30 | IMAGE → TEXT → AUDIO pipeline (Gemma 4 + LFM-2.5) | Medium |
+
+Recipe 57 (`debate_loop`) is the natural successor to recipe 56 (`code_pipeline`) — it exercises `CALL PARALLEL` with two independent agent roles and a judge loop, which is the canonical multi-agent pattern.
+
+Recipe 59 (`spec_to_code`) is the NDD closure anchor for `splc`: the generated Go/TypeScript code for this recipe is the primary target for the compiler's correctness test.
 
