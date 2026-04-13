@@ -38,16 +38,21 @@ def _builtin_clean_code(text: str) -> str:
 
     Currently handles:
       - Markdown fences  (```python ... ``` or ``` ... ```)
+      - Prose preamble before the first fence (e.g. "Here is the code:\n```python\n...")
       - Leading / trailing blank lines
 
     Future candidates: shebang lines, stray prose commentary,
     indentation normalisation, BOM stripping.
     """
     text = text.strip()
-    # Remove opening fence line: ```python, ```go, ``` etc.
-    text = re.sub(r'^```[^\n]*\n', '', text)
-    # Remove closing fence line: trailing ```
-    text = re.sub(r'\n```\s*$', '', text)
+    # If there is a fenced code block anywhere, extract just its content.
+    # This handles prose preamble that precedes the fence.
+    m = re.search(r'```[^\n]*\n(.*?)```', text, re.DOTALL)
+    if m:
+        return m.group(1).strip()
+    # Fallback: no fences found — strip any stray fence markers and return.
+    text = re.sub(r'```[^\n]*\n?', '', text)
+    text = re.sub(r'\n?```', '', text)
     return text.strip()
 
 

@@ -8,6 +8,9 @@
 CREATE FUNCTION run_tests(code TEXT, spec TEXT, lang TEXT)
 RETURN TEXT
 AS $$
+IMPORTANT: Your response MUST start with either [PASSED] or [FAILED] on the very first line.
+Do not write any code. Do not write explanations before the verdict token.
+
 You are a rigorous {lang} code reviewer acting as an automated test suite.
 
 Original specification:
@@ -23,13 +26,9 @@ Evaluate the code against the specification. Check:
 4. Return type / signature — does it match what the spec expects?
 5. Language idioms — does it follow standard {lang} conventions and best practices?
 
-If the code fully satisfies the specification with no critical issues,
-output exactly this token on the first line and nothing else:
-[PASSED]
-
-Otherwise output:
-[FAILED]
-<concise bullet list of specific failures or missing requirements>
+Output format — first line must be one of these two tokens, nothing else:
+[PASSED]   ← if the code fully satisfies the specification with no critical issues
+[FAILED]   ← followed by a concise bullet list of specific failures or missing requirements
 $$;
 
 

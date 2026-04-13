@@ -82,8 +82,10 @@ DO
     LOGGING '[code_pipeline] step 0: analyze spec' LEVEL INFO
     CALL analyze_spec(@spec, @model, @log_dir) INTO @analysis
     EVALUATE @analysis
-        WHEN contains('[VAGUE]') THEN
-            LOGGING '[code_pipeline] spec too vague — aborting pipeline' LEVEL WARN
+        WHEN contains('[READY]') THEN
+            LOGGING '[code_pipeline] spec gate: READY — proceeding' LEVEL INFO
+        ELSE
+            LOGGING '[code_pipeline] spec gate: no [READY] token — aborting pipeline' LEVEL WARN
             RETURN @analysis WITH status = 'vague_spec'
     END
 

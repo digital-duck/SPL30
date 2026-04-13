@@ -1,0 +1,1 @@
+Write a binary search function that returns the index or -1

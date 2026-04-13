@@ -64,10 +64,15 @@ class LocalRegistry:
     def register(self, defn: WorkflowDefinition) -> None:
         """Register a workflow definition. Overwrites on name collision."""
         if defn.name in self._workflows:
+            existing = self._workflows[defn.name]
+            # Same file re-loaded (e.g. load_dir + IMPORT both resolve to the same
+            # .spl file) — silently skip; content is identical.
+            if existing.source_file == defn.source_file:
+                return
             _log.warning(
                 "Registry: overwriting workflow '%s' (was from %s, now from %s)",
                 defn.name,
-                self._workflows[defn.name].source_file,
+                existing.source_file,
                 defn.source_file,
             )
         self._workflows[defn.name] = defn

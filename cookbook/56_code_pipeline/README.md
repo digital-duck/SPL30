@@ -114,8 +114,13 @@ The closure report is appended to `@docs` as a final section.
 ### Basic run (closure check enabled by default)
 
 ```bash
-spl run cookbook/56_code_pipeline/code_pipeline.spl \
-    --param spec="Write a binary search function that returns the index or -1"
+spl3 run cookbook/56_code_pipeline/code_pipeline.spl \
+    --adapter ollama \
+    --param model=gemma3 \
+    --param spec="Write a binary search function that returns the index or -1" \
+    --param check_closure=FALSE
+
+
 ```
 
 ### Skip the closure check
