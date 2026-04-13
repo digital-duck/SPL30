@@ -17,12 +17,14 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 
 _log = logging.getLogger("spl.executor")
 
 from spl.executor import Executor as SPL2Executor
 
-from spl3.ast_nodes import NoneLiteral, SetLiteral, CallParallelStatement
+from spl.ast_nodes import Condition
+from spl3.ast_nodes import NoneLiteral, SetLiteral, CallParallelStatement, UnaryOp, CompoundCondition
 from spl3.types import coerce_to_int, coerce_to_float
 
 
@@ -31,7 +33,30 @@ _INT_TYPES   = {"INT", "INTEGER"}
 _FLOAT_TYPES = {"FLOAT"}
 
 
+def _builtin_clean_code(text: str) -> str:
+    """Remove common LLM output artifacts from generated code.
+
+    Currently handles:
+      - Markdown fences  (```python ... ``` or ``` ... ```)
+      - Leading / trailing blank lines
+
+    Future candidates: shebang lines, stray prose commentary,
+    indentation normalisation, BOM stripping.
+    """
+    text = text.strip()
+    # Remove opening fence line: ```python, ```go, ``` etc.
+    text = re.sub(r'^```[^\n]*\n', '', text)
+    # Remove closing fence line: trailing ```
+    text = re.sub(r'\n```\s*$', '', text)
+    return text.strip()
+
+
 class SPL3Executor(SPL2Executor):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Register SPL 3.0 built-ins
+        self.functions._builtins["clean_code"] = lambda text: _builtin_clean_code(str(text))
     """SPL 3.0 executor, extending SPL 2.0 with the extended type system."""
 
     # ------------------------------------------------------------------ #
@@ -45,6 +70,13 @@ class SPL3Executor(SPL2Executor):
           NoneLiteral  →  '' (empty string; same as undefined variable)
           SetLiteral   →  sorted, deduplicated JSON array string
         """
+        # NOT <expr> — boolean negation
+        if isinstance(expr, UnaryOp) and expr.operator == 'NOT':
+            val = self._eval_expression(expr.operand, state)
+            # Falsy values: '', '0', 'false', 'FALSE', 'False', 'none', 'null'
+            falsy = val.strip().lower() in ('', '0', 'false', 'none', 'null')
+            return 'true' if falsy else 'false'
+
         # NONE / NULL literal → empty string
         if isinstance(expr, NoneLiteral):
             return ""
@@ -56,6 +88,66 @@ class SPL3Executor(SPL2Executor):
             return json.dumps(unique_sorted)
 
         return super()._eval_expression(expr, state)
+
+    # ------------------------------------------------------------------ #
+    # WHILE condition evaluation                                            #
+    # ------------------------------------------------------------------ #
+
+    def _eval_while_cond(self, cond, state) -> bool:
+        """Recursively evaluate a WHILE condition to bool.
+
+        Handles SPL 3.0 additions:
+          UnaryOp(NOT)      — boolean negation
+          CompoundCondition — AND / OR of two sub-conditions
+          Condition         — numeric comparison (delegated)
+        Falls through to truthy string check for plain expressions.
+        """
+        if isinstance(cond, CompoundCondition):
+            left_val  = self._eval_while_cond(cond.left,  state)
+            right_val = self._eval_while_cond(cond.right, state)
+            if cond.operator == 'AND':
+                return left_val and right_val
+            else:  # OR
+                return left_val or right_val
+
+        if isinstance(cond, UnaryOp) and cond.operator == 'NOT':
+            return not self._eval_while_cond(cond.operand, state)
+
+        if isinstance(cond, Condition):
+            try:
+                left_val  = float(self._eval_expression(cond.left,  state))
+                right_val = float(self._eval_expression(cond.right, state))
+                return self._compare(left_val, cond.operator, right_val)
+            except (ValueError, TypeError):
+                return False
+
+        # Plain expression — truthy string check
+        val = self._eval_expression(cond, state)
+        return bool(val and val != '0' and val.lower() not in ('false', 'none', 'null'))
+
+    async def _exec_while(self, stmt, state):
+        """Override to use _eval_while_cond for SPL 3.0 compound conditions."""
+        from spl.ast_nodes import SemanticCondition
+        # Only intercept CompoundCondition and UnaryOp; delegate the rest to SPL 2.0
+        if isinstance(stmt.condition, (CompoundCondition, UnaryOp)):
+            iteration = 0
+            max_iter  = stmt.max_iterations or self.DEFAULT_MAX_ITERATIONS
+            while iteration < max_iter:
+                if state.committed:
+                    return
+                if not self._eval_while_cond(stmt.condition, state):
+                    break
+                await self._execute_body(stmt.body, state)
+                iteration += 1
+            if iteration >= max_iter:
+                from spl.exceptions import MaxIterationsReached
+                raise MaxIterationsReached(
+                    f"WHILE loop exceeded {max_iter} iterations"
+                )
+            return
+        # SPL 2.0 handles Condition and SemanticCondition
+        await super()._exec_while(stmt, state)
+
 
     # ------------------------------------------------------------------ #
     # Workflow execution — typed INPUT param coercion                     #

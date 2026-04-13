@@ -89,7 +89,11 @@ class LocalRegistry:
         return len(defns)
 
     def load_dir(self, directory: str | Path, pattern: str = "*.spl") -> int:
-        """Recursively load all .spl files in a directory.
+        """Load all .spl files in a directory (non-recursive).
+
+        Non-recursive by design: workflow files are always flat in a directory.
+        Using rglob would crawl into log/output subdirectories and pick up
+        stray matches (e.g. a directory named '.spl' in a logs tree).
 
         Returns the total number of workflows registered.
         """
@@ -97,8 +101,9 @@ class LocalRegistry:
         if not directory.is_dir():
             raise RegistryError(f"Not a directory: {directory}")
         total = 0
-        for spl_file in sorted(directory.rglob(pattern)):
-            total += self.load_file(spl_file)
+        for spl_file in sorted(directory.glob(pattern)):
+            if spl_file.is_file():
+                total += self.load_file(spl_file)
         return total
 
     # ------------------------------------------------------------------ #

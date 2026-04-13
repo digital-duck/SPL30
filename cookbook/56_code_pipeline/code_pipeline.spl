@@ -9,9 +9,9 @@
 --     [VAGUE] → abort ✗
 --
 --   Step 1 (generate → review → improve)  ←─────────────────────────────┐
---     01_generate_code   writes: target/{lang}/code.md                   │
+--     01_generate_code   writes: target/{lang}/code.{ext}               │
 --     02_review_code     writes: target/{lang}/review.md                 │
---     03_improve_code    writes: target/{lang}/code.md  (updated)        │
+--     03_improve_code    writes: target/{lang}/code.{ext}  (updated)     │
 --   Step 2 (04_test_code)                                                 │
 --     writes: tests/{lang}/result.md                                     │
 --     [PASSED] → Step 3                                                   │
@@ -30,7 +30,7 @@
 --     analysis.md     ← step 0 verdict + structured restatement
 --     extracted.md    ← step 3b reverse-engineered spec
 --   target/{lang}/
---     code.md         ← final generated + improved source
+--     code.{ext}      ← final generated + improved source (ext = py, go, ts, js, …)
 --     review.md       ← last review feedback
 --     docs.md         ← generated documentation
 --   tests/{lang}/
@@ -100,10 +100,6 @@ DO
         LOGGING f'[code_pipeline] cycle={@cycle} | step 1: generate' LEVEL INFO
 
         CALL generate_code(@spec, @lang, @model, @log_dir) INTO @code
-        EXCEPTION WHEN RefusalToAnswer THEN
-            LOGGING f'[code_pipeline] generator refused spec at cycle={@cycle}' LEVEL WARN
-            RETURN 'Refused.' WITH status = 'refused'
-        END
 
         LOGGING f'[code_pipeline] cycle={@cycle} | step 1: review' LEVEL INFO
         CALL review_code(@code, @lang, @model, @log_dir) INTO @feedback
@@ -158,6 +154,9 @@ DO
     RETURN @docs
 
 EXCEPTION
+    WHEN RefusalToAnswer THEN
+        LOGGING '[code_pipeline] generator refused — aborting pipeline' LEVEL WARN
+        RETURN 'Refused.' WITH status = 'refused'
     WHEN ModelUnavailable THEN
         LOGGING '[code_pipeline] model unavailable' LEVEL ERROR
         RETURN '[ERROR] Model unavailable.' WITH status = 'failed'

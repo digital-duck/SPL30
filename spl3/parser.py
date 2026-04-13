@@ -21,12 +21,13 @@ from spl.tokens import TokenType
 from spl.parser import Parser as SPL2Parser
 from spl.ast_nodes import (
     MapLiteral, Parameter, StorageSpec, Expression,
-    CallStatement,
+    CallStatement, Condition,
 )
 
 from spl3.ast_nodes import (
     NoneLiteral, SetLiteral, ImportStatement,
     CallParallelBranch, CallParallelStatement,
+    UnaryOp, CompoundCondition,
 )
 
 
@@ -142,6 +143,39 @@ class SPL3Parser(SPL2Parser):
         )
 
     # ------------------------------------------------------------------ #
+    # WHILE condition — supports NOT prefix and AND/OR compounds           #
+    # ------------------------------------------------------------------ #
+
+    def _parse_while_condition(self):
+        """Parse WHILE condition with SPL 3.0 extensions:
+          - NOT <expr>           — boolean negation as a condition
+          - <cond> AND/OR <cond> — compound where left side may be a boolean expr
+
+        Falls through to SPL 2.0 for plain comparison conditions.
+        """
+        # NOT <expr> — boolean condition
+        if self._check(TokenType.NOT):
+            self._advance()
+            operand = self._parse_expression()
+            left = UnaryOp(operator='NOT', operand=operand)
+            # Check for AND/OR compound
+            if self._check_any(TokenType.AND, TokenType.OR):
+                logical_op = 'AND' if self._current().type == TokenType.AND else 'OR'
+                self._advance()
+                right = self._parse_while_condition()  # recursive — handles chains
+                return CompoundCondition(operator=logical_op, left=left, right=right)
+            return left
+
+        # SPL 2.0 handles plain comparisons; intercept AND/OR after them
+        cond = super()._parse_while_condition()
+        if self._check_any(TokenType.AND, TokenType.OR):
+            logical_op = 'AND' if self._current().type == TokenType.AND else 'OR'
+            self._advance()
+            right = self._parse_while_condition()
+            return CompoundCondition(operator=logical_op, left=cond, right=right)
+        return cond
+
+    # ------------------------------------------------------------------ #
     # Expression primary — NONE literal + SET vs MAP disambiguation        #
     # ------------------------------------------------------------------ #
 
@@ -153,6 +187,12 @@ class SPL3Parser(SPL2Parser):
           2. { } brace literals — disambiguates MAP vs SET
         """
         tok = self._current()
+
+        # NOT <expr> — boolean negation
+        if tok.type == TokenType.NOT:
+            self._advance()
+            operand = self._parse_primary()
+            return UnaryOp(operator='NOT', operand=operand)
 
         # NONE / NULL literal
         if tok.type == TokenType.IDENTIFIER and tok.value.upper() in ("NONE", "NULL"):

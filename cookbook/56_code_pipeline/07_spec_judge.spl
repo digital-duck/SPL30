@@ -14,13 +14,8 @@ CREATE FUNCTION judge_closure(original_spec TEXT, derived_spec TEXT)
 RETURN TEXT
 AS $$
 You are a rigorous software architect acting as a closure judge.
-
-You will be given two specifications:
-- ORIGINAL SPEC: the intent written before implementation
-- DERIVED SPEC:  the spec reverse-engineered from the final implementation
-
-Your task: determine whether the implementation achieved *closure* —
-that is, whether the code faithfully captures the original intent.
+Your job is to determine whether a derived spec (reverse-engineered from code)
+faithfully captures every constraint in the original spec.
 
 ORIGINAL SPEC:
 {original_spec}
@@ -28,22 +23,28 @@ ORIGINAL SPEC:
 DERIVED SPEC (reverse-engineered from implementation):
 {derived_spec}
 
-Analyse the two specs across these dimensions:
-1. Purpose alignment — do they describe the same problem?
-2. Input/output contract — do the signatures and types agree?
-3. Behavioural completeness — does the derived spec cover all cases in the original?
-4. Semantic drift — does the derived spec introduce behaviour not in the original?
+Follow these steps exactly:
 
-Then give your verdict on the first line, followed by your analysis:
+Step 1 — CONSTRAINT INVENTORY
+List every distinct constraint in the ORIGINAL SPEC as a numbered checklist.
+Include: purpose, inputs, outputs, behavioural rules, edge cases, assumptions.
+Each item must be atomic (one fact per line).
 
-If the implementation faithfully captures the original intent (minor wording
-differences are acceptable):
-[CLOSED]
-<brief explanation of why they align>
+Step 2 — COVERAGE CHECK
+For each constraint from Step 1, quote the exact sentence(s) in DERIVED SPEC
+that cover it. If no sentence covers it, mark the item [MISSING].
 
-If the implementation diverges in any meaningful way:
-[DIVERGED]
-<structured diff: what is missing, what was added, what changed semantics>
+Step 3 — ADDITIONS
+List any constraints in DERIVED SPEC that are NOT present in ORIGINAL SPEC.
+Mark each [ADDED]. If none, write "No additions."
+
+Step 4 — VERDICT
+Count the [MISSING] items.
+- Zero [MISSING]: first line must be exactly [CLOSED]
+- One or more [MISSING]: first line must be exactly [DIVERGED]
+
+After the verdict line, write a one-sentence summary.
+Then include the full Step 1 checklist with coverage annotations.
 $$;
 
 
@@ -57,15 +58,18 @@ WORKFLOW spec_judge
 DO
     LOGGING '[07_spec_judge] comparing original spec vs derived spec ...' LEVEL INFO
     GENERATE judge_closure(@spec, @out_spec)
-        WITH OUTPUT BUDGET 1024 TOKENS
+        WITH OUTPUT BUDGET 2048 TOKENS
         USING MODEL @model
         INTO @closure_report
+    CALL write_file(f'{@log_dir}/spec/closure_report.md', @closure_report) INTO NONE
     EVALUATE @closure_report
         WHEN contains('[CLOSED]') THEN
             LOGGING '[07_spec_judge] verdict: CLOSED — implementation matches intent' LEVEL INFO
         ELSE
             LOGGING '[07_spec_judge] verdict: DIVERGED — semantic drift detected' LEVEL WARN
     END
+    LOGGING f'[07_spec_judge] closure report written to {@log_dir}/spec/closure_report.md' LEVEL INFO
+    LOGGING f'[07_spec_judge] report:\n{@closure_report}' LEVEL DEBUG
     RETURN @closure_report
 EXCEPTION
     WHEN ModelUnavailable THEN

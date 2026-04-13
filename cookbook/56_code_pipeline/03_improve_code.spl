@@ -2,7 +2,7 @@
 -- Sub-workflow: improve code given review feedback and optional test failures.
 --
 -- Artifacts written:
---   target/{lang}/code.md  — improved source code (overwrites previous draft)
+--   target/{lang}/code.{ext}  — improved source code, overwrites previous draft (ext = py, go, ts, js, …)
 
 CREATE FUNCTION refactor(code TEXT, feedback TEXT, test_result TEXT, lang TEXT)
 RETURN TEXT
@@ -34,11 +34,22 @@ WORKFLOW improve_code
     OUTPUT: @improved TEXT
 DO
     LOGGING f'[03_improve_code] started | lang={@lang}' LEVEL INFO
+
+    @ext := 'py'
+    EVALUATE @lang
+        WHEN = 'go'   THEN @ext := 'go'
+        WHEN = 'ts'   THEN @ext := 'ts'
+        WHEN = 'js'   THEN @ext := 'js'
+        WHEN = 'java' THEN @ext := 'java'
+        WHEN = 'rust' THEN @ext := 'rs'
+    END
+
     GENERATE refactor(@code, @feedback, @test_result, @lang)
         WITH OUTPUT BUDGET 2048 TOKENS
         USING MODEL @model
         INTO @improved
-    CALL write_file(f'{@log_dir}/target/{@lang}/code.md', @improved) INTO NONE
+    CALL clean_code(@improved) INTO @improved
+    CALL write_file(f'{@log_dir}/target/{@lang}/code.{@ext}', @improved) INTO NONE
     LOGGING f'[03_improve_code] done | output_len={len(@improved)}' LEVEL INFO
     RETURN @improved
 EXCEPTION

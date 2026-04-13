@@ -1,9 +1,11 @@
 """SPL 3.0 AST node additions over SPL 2.0.
 
 New nodes:
-  SetLiteral   — {a, b, c}  unordered unique collection literal
-  ImportStatement — IMPORT 'file.spl'  multi-file workflow loading
+  SetLiteral         — {a, b, c}  unordered unique collection literal
+  ImportStatement    — IMPORT 'file.spl'  multi-file workflow loading
   CallParallelStatement — CALL PARALLEL ... END  concurrent dispatch
+  UnaryOp            — NOT <expr>  boolean negation
+  CompoundCondition  — <cond> AND/OR <cond>  compound boolean condition
 """
 
 from __future__ import annotations
@@ -11,6 +13,42 @@ from dataclasses import dataclass, field
 
 # Re-export SPL 2.0 nodes so callers can import from one place.
 from spl.ast_nodes import Expression  # noqa: F401
+
+
+@dataclass
+class UnaryOp(Expression):
+    """NOT <expr> — boolean negation.
+
+    operator : currently always 'NOT'
+    operand  : the expression being negated
+
+    At runtime evaluates operand and returns its boolean inverse.
+
+    Example:
+        WHILE NOT @test_passed AND @cycle < @max_cycles DO
+    """
+    operator: str
+    operand: Expression = field(default=None)
+
+
+@dataclass
+class CompoundCondition:
+    """<cond> AND/OR <cond> — compound boolean WHILE condition.
+
+    Allows boolean conditions to be joined with AND or OR, where each
+    side can be a Condition, UnaryOp, or another CompoundCondition.
+
+    Example:
+        WHILE NOT @test_passed AND @cycle < @max_cycles DO
+        →  CompoundCondition(
+               operator='AND',
+               left=UnaryOp('NOT', ParamRef('test_passed')),
+               right=Condition(ParamRef('cycle'), '<', Literal(max_cycles))
+           )
+    """
+    operator: str   # 'AND' or 'OR'
+    left: object    # Condition | UnaryOp | CompoundCondition | Expression
+    right: object
 
 
 @dataclass

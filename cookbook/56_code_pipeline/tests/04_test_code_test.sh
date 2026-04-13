@@ -9,6 +9,8 @@ PIPELINE_DIR="$(dirname "$SCRIPT_DIR")"
 LOG_DIR="$SCRIPT_DIR/logs/04_test_code"
 mkdir -p "$LOG_DIR"
 
+source "$SCRIPT_DIR/helpers.sh"
+
 SPEC=$(cat "$SCRIPT_DIR/mock/spec_clear.txt")
 CODE_GOOD=$(cat "$SCRIPT_DIR/mock/code_good.py")
 CODE_BUGGY=$(cat "$SCRIPT_DIR/mock/code_buggy.py")
@@ -17,15 +19,20 @@ PASS=0; FAIL=0
 
 run_test() {
     local name="$1" code="$2" expected_token="$3"
+    local run_script="$LOG_DIR/$name/run.sh"
+    save_run_script "$run_script" "$PIPELINE_DIR/04_test_code.spl" ollama \
+        code "$code" spec "$SPEC" lang "python" model "$MODEL" log_dir "$LOG_DIR/$name"
+    local -a cmd=(spl3 run "$PIPELINE_DIR/04_test_code.spl"
+        --adapter ollama
+        --param "code=$code"
+        --param "spec=$SPEC"
+        --param "lang=python"
+        --param "model=$MODEL"
+        --param "log_dir=$LOG_DIR/$name")
     echo "  [$name] running ..."
-    output=$(spl3 run "$PIPELINE_DIR/04_test_code.spl" \
-        --adapter ollama \
-        --param "code=$code" \
-        --param "spec=$SPEC" \
-        --param "lang=python" \
-        --param "model=$MODEL" \
-        --param "log_dir=$LOG_DIR/$name" \
-        2>&1)
+    echo "  CMD: ${cmd[*]}"
+    echo "  RUN: $run_script"
+    output=$("${cmd[@]}" 2>&1)
     if echo "$output" | grep -q "$expected_token"; then
         echo "  [$name] PASS — found '$expected_token'"
         PASS=$((PASS + 1))
