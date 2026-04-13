@@ -1,6 +1,6 @@
 # SPL Future Work — Design Ideas
 
-*Captured: 2026-03-30. Last updated: 2026-04-13.*
+*Captured: 2026-03-30. Last updated: 2026-04-13 (session 2).*
 
 **Implementation progress:** see [FEATURES.md](FEATURES.md) for what is currently implemented and tested.
 - ROADMAP.md tracks *design intent*;
@@ -99,6 +99,70 @@ inference has cost — measured in Moma Points. Points flow:
 
 This is the economic layer that makes decentralized, open compute sustainable —
 analogous to how peering agreements and transit pricing sustain the internet.
+
+---
+
+## School Momagrid — AI for Every Kid, Everywhere
+
+*Added: 2026-04-13. Education is the planned launch platform for SPL + Momagrid.*
+
+The same Hub-to-Hub federation that powers the broader Momagrid works at school scale.
+
+### School Hub Architecture
+
+```
+School Campus
+├── Momagrid Hub  (one mini-PC in the server room)
+├── Ollama        (local LLM inference — gemma4 or equivalent)
+└── Students      (any device on the school network — browser-based SPL UI)
+```
+
+No internet required. No data leaves the campus. No per-token bill — ever.
+
+### The Gaming PC Flip
+
+Student gaming PCs contribute GPU to the Hub during school hours. The machine goes
+from "the thing that ruins my kid" to "the thing my kid contributes to the school."
+
+| Metric | What it means |
+|--------|--------------|
+| GPU contributed 10,000 inference calls | You powered your classmates' learning |
+| Your workflow was used by 47 students | You built something useful |
+| Top contributor in your class | Your hardware + your creativity matter |
+
+### Cost Model
+
+| Setup | Cost model | 1,000 student queries |
+|-------|-----------|----------------------|
+| OpenAI API direct | Per token | $5–$50 |
+| Anthropic API direct | Per token | Similar range |
+| `claude_cli` adapter | Flat subscription | Same cost as 1 query |
+| Ollama local | Zero | Zero |
+
+The `claude_cli` adapter routes complex reasoning through Claude at flat subscription
+cost — no per-token billing. Schools get local speed+privacy for routine tasks and
+Claude-level reasoning for demanding tasks, all within a predictable budget.
+
+### School Federation
+
+Individual school hubs peer into district/national Momagrids via the standard
+Hub-to-Hub peering protocol — no new infrastructure. A workflow written by a teacher
+in one school is available to every school in the federation immediately.
+
+### Roadmap
+
+| Feature | Status |
+|---------|--------|
+| Hub architecture + Ollama local inference | `[DONE]` — works today |
+| `claude_cli` flat-subscription adapter | `[DONE]` — adapter exists |
+| Zero-data-leaves-campus by design | `[DONE]` — local inference |
+| Hub-to-Hub federation (district Momagrids) | `[DONE]` — peering protocol |
+| School deployment guide + mini-PC setup doc | `[TODO]` |
+| Student gaming PC enrollment flow (volunteer node) | `[TODO]` |
+| Gamification / leaderboard (contribution metrics) | `[TODO]` |
+| Browser-based SPL workflow editor for students | `[TODO]` — needs SPL.ts browser bundle |
+
+*Vision document: `SPL20/docs/School-Momagrid.md`*
 
 ---
 
@@ -516,19 +580,23 @@ END
 
 | Change | File | Status |
 |---|---|---|
-| `SPL3Type` enum + coerce helpers | `spl/types.py` | done |
-| Grammar spec additions | `specs/grammar-additions.ebnf` | done |
-| Token keywords: NONE, NULL, IMAGE, AUDIO, VIDEO | lexer extension | todo |
-| `SetLiteral` AST node | AST extension | todo |
-| `{a, b}` SET vs `{k: v}` MAP disambiguation | parser extension | todo |
-| `NONE` literal → `Literal(value=None, literal_type='none')` | parser extension | todo |
-| INT/FLOAT coercion in workflow INPUT processing | executor extension | todo |
-| Multimodal param pass-through to LLM adapter | executor + adapters | todo |
-| Liquid AI LFM adapter (Ollama + OpenRouter) | `spl/adapters/liquid.py` | done |
-| `MultiModalMixin` + `ContentPart` types | `spl/adapters/base_multimodal.py` | done |
+| `SPL3Type` enum + coerce helpers | `spl3/types.py` | **done** |
+| Grammar spec additions | `specs/grammar-additions.ebnf` | **done** |
+| Token keywords: NONE, NULL, IMAGE, AUDIO, VIDEO | lexer extension | **done** (Python+Go+TS) |
+| `SetLiteral` AST node | `spl3/ast_nodes.py` | **done** (Python); todo Go/TS |
+| `{a, b}` SET vs `{k: v}` MAP disambiguation | `spl3/parser.py` | **done** (Python); todo Go/TS |
+| `NONE` literal → `NoneLiteral` AST node | `spl3/parser.py` | **done** (Python+Go+TS) |
+| INT/FLOAT coercion in workflow INPUT processing | `spl3/executor.py` | **done** |
+| `SPL3Executor._exec_generate_into` multimodal override | `spl3/executor.py` | **done** |
+| `MultiModalDDLLMBridge.generate_multimodal()` | `spl3/adapters/dd_llm_bridge.py` | **done** |
+| Ollama WAV-only auto-convert (pydub) | `spl3/adapters/dd_llm_bridge.py` | **done** |
+| `spl3/codecs/image_codec.py` | IMAGE → base64 ImagePart | **done** |
+| `spl3/codecs/audio_codec.py` | AUDIO → base64 AudioPart | **done** |
+| `spl3/codecs/video_codec.py` | VIDEO → frame ImageParts | todo |
+| Liquid AI LFM adapter (Ollama + OpenRouter) | `spl/adapters/liquid.py` | **done** |
+| `MultiModalMixin` + `ContentPart` types | `spl/adapters/base_multimodal.py` | **done** |
 | Ubuntu 26.04 snap adapter (placeholder) | `spl/adapters/snap.py` | placeholder |
-| `spl/codecs/` data transform layer (PIL, WAV, video frames) | `spl/codecs/` | todo |
-| `generate_multimodal()` override in LiquidAdapter | `spl/adapters/liquid.py` | todo |
+| `generate_multimodal()` in Go/TS (codec pipeline) | `SPL.go` / `SPL.ts` | todo |
 | `DATACLASS` / `CREATE TYPE` | parser + executor | v3.1 |
 
 ---
@@ -603,16 +671,22 @@ The adapter never handles raw files — it receives pre-encoded `ContentPart` di
 
 ### Multi-Modal Cookbook Prototypes
 
-Start prototyping immediately to validate SPL 3.0 multi-modal support end-to-end. New `multimodal` category, recipes starting at id 50 (after SPL20's last recipe id 49):
+SPL30 multi-modal recipes (50–64) validated end-to-end as of 2026-04-13:
 
-| id | Recipe | Type | Model | Status |
+| id | Recipe | Flow | Model | spl3 run status |
 |---|---|---|---|---|
-| 50 | `image_caption` | IMAGE | Gemma 4 via Ollama | todo — immediately actionable |
-| 51 | `audio_summary` | AUDIO | Liquid LFM-2.5 via Ollama | todo — near-term |
-| 52 | `visual_qa` | IMAGE | Gemma 4 via Ollama | todo — multi-turn vision RAG |
-| 53 | `video_scene` | VIDEO (frames) | Gemma 4 via Ollama | todo — planned |
+| 51 | `image_caption` | IMAGE→TEXT | gemma4:e4b (Ollama) | **`[DONE]`** — `spl3 run` + `run.py` both working |
+| 52 | `audio_summary` | AUDIO→TEXT | gemma4:e4b (Ollama) | **`[DONE]`** — WAV and MP3 (auto-converted) |
+| 53 | `video_summary` | VIDEO→TEXT | gemma4 (Ollama) | `[TODO]` — run.py scaffolded |
+| 54 | `text_to_image` | TEXT→IMAGE | DALL-E 3 | `[TODO]` — requires OpenAI key |
+| 55 | `text_to_speech` | TEXT→AUDIO | OpenAI TTS | `[TODO]` — requires OpenAI key |
+| 56 | `text_to_video` | TEXT→VIDEO | Veo 2 / RunwayML | `[TODO]` — requires Google key |
 
-Recipe 50 (`image_caption`) is the unblocked starting point: Gemma 4 is available on Ollama today, `IMAGE` type is already in `spl/types.py`, and `OllamaAdapter` passes the content array through the `/v1/chat/completions` endpoint unchanged.
+Key implementation details confirmed working:
+- `encode_image()` in `spl3/codecs/image_codec.py` — Pillow optional, JPEG resize to ≤1568px
+- `encode_audio()` in `spl3/codecs/audio_codec.py` — WAV/MP3/OGG/FLAC → base64 AudioPart
+- `SPL3Executor._exec_generate_into` override — detects IMAGE/AUDIO typed params, calls `generate_multimodal()`
+- `MultiModalDDLLMBridge` in `spl3/adapters/dd_llm_bridge.py` — Ollama WAV-only constraint handled (pydub auto-convert)
 
 ---
 
@@ -921,7 +995,7 @@ The harness runs all cookbook recipes with `--adapter echo`, captures outputs fr
 |---------|--------|
 | `spl3 run --adapter echo` oracle | `[DONE]` — all runtimes |
 | Manual NDD closure tests (SPL20 gaps found and closed) | `[DONE]` |
-| `07_spec_judge.spl` LLM-based fuzzy judge | `[DONE]` — recipe 56 |
+| `07_spec_judge.spl` LLM-based fuzzy judge | `[DONE]` — sub-workflow in recipe 50 (`code_pipeline`) |
 | `ndd_closure.sh` automated test script (Python vs. Go) | `[TODO]` |
 | `ndd_closure.sh` TypeScript leg | `[TODO]` — after SPL.ts NDD test passes |
 | Formal `ndd_closure/` Python module | `[TODO]` |

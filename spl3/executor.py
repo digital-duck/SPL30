@@ -6,8 +6,12 @@ New capabilities over SPL 2.0:
   - SetLiteral                 →  serializes as sorted, deduplicated JSON array
   - INT / INTEGER param type   →  INPUT params coerced via int(float(x))
   - FLOAT param type           →  INPUT params coerced via float(x)
-  - IMAGE / AUDIO / VIDEO      →  passed through as-is (file path or data URI);
-                                  multimodal encoding is the adapter's job
+  - IMAGE / AUDIO / VIDEO      →  when a GENERATE function has an IMAGE-typed
+                                  param, the executor encodes the file/URL via
+                                  spl3.codecs.encode_image() and calls
+                                  adapter.generate_multimodal() instead of
+                                  adapter.generate().  Workflow INPUT params of
+                                  these types are still passed through as-is.
   - CallParallelStatement      →  dispatches branches via WorkflowComposer
 
 SPL 2.0 backward compatibility is fully preserved.
@@ -153,6 +157,145 @@ class SPL3Executor(SPL2Executor):
         # SPL 2.0 handles Condition and SemanticCondition
         await super()._exec_while(stmt, state)
 
+
+    # ------------------------------------------------------------------ #
+    # GENERATE — multimodal dispatch for IMAGE/AUDIO/VIDEO-typed params   #
+    # ------------------------------------------------------------------ #
+
+    _MULTIMODAL_TYPES = {"IMAGE", "AUDIO", "VIDEO"}
+
+    async def _exec_generate_into(self, stmt, state):
+        """Override to dispatch to generate_multimodal() when a GENERATE
+        function has one or more IMAGE-, AUDIO-, or VIDEO-typed parameters.
+
+        Strategy:
+          1. Inspect the first GENERATE segment's function definition.
+          2. If no multimodal params are found, delegate entirely to the SPL 2.0
+             implementation (zero overhead for all text-only workflows).
+          3. If multimodal params are present, encode each arg via the matching
+             codec (encode_image / encode_audio), build a content array
+             [TextPart, ...MediaParts], and call adapter.generate_multimodal().
+        """
+        first_gen = stmt.generate_clause
+        if first_gen is None:
+            return await super()._exec_generate_into(stmt, state)
+
+        func_def = self.functions.get(first_gen.function_name)
+        if not func_def:
+            return await super()._exec_generate_into(stmt, state)
+
+        mm_param_names = {
+            p.name for p in func_def.parameters
+            if (getattr(p, "param_type", None) or "").upper() in self._MULTIMODAL_TYPES
+        }
+        if not mm_param_names:
+            return await super()._exec_generate_into(stmt, state)
+
+        # ── Multimodal path ───────────────────────────────────────────────
+        from spl3.codecs.image_codec import encode_image
+        from spl3.codecs.audio_codec import encode_audio
+
+        current_gen = first_gen
+        last_content: str = ""
+        segment_count = 0
+
+        while current_gen is not None:
+            segment_count += 1
+
+            args_text = []
+            for arg in current_gen.arguments:
+                args_text.append(self._eval_expression(arg, state))
+
+            if segment_count > 1 and not args_text:
+                args_text = [last_content]
+
+            # Resolve function def for this segment (may differ from first)
+            seg_func_def = self.functions.get(current_gen.function_name)
+            if seg_func_def:
+                seg_mm_params = {
+                    p.name: (getattr(p, "param_type", None) or "").upper()
+                    for p in seg_func_def.parameters
+                    if (getattr(p, "param_type", None) or "").upper() in self._MULTIMODAL_TYPES
+                }
+                prompt = seg_func_def.body
+                media_parts = []
+                for param, arg_val in zip(seg_func_def.parameters, args_text):
+                    ptype = seg_mm_params.get(param.name)
+                    if ptype == "IMAGE":
+                        try:
+                            media_parts.append(encode_image(arg_val))
+                        except Exception as exc:
+                            _log.warning("IMAGE encode failed for %s=%r: %s",
+                                         param.name, arg_val, exc)
+                    elif ptype == "AUDIO":
+                        try:
+                            media_parts.append(encode_audio(arg_val))
+                        except Exception as exc:
+                            _log.warning("AUDIO encode failed for %s=%r: %s",
+                                         param.name, arg_val, exc)
+                    else:
+                        prompt = prompt.replace("{" + param.name + "}", arg_val)
+            else:
+                prompt = f"Task: {current_gen.function_name}\n\n"
+                for i, arg_val in enumerate(args_text):
+                    prompt += f"Input {i+1}:\n{arg_val}\n\n"
+                media_parts = []
+
+            if self.default_model:
+                model = self.default_model
+            elif "model" in state.current_overrides:
+                model = state.current_overrides["model"]
+            else:
+                model = current_gen.model or ""
+                if model.startswith("@"):
+                    model = state.get_var(model[1:])
+
+            budget = current_gen.output_budget
+            if isinstance(budget, str) and budget.startswith("@"):
+                budget = int(state.get_var(budget[1:]))
+            max_tokens = int(budget) if budget else self.default_max_tokens
+
+            temp = current_gen.temperature or 0.7
+            if "temperature" in state.current_overrides:
+                try:
+                    temp = float(state.current_overrides["temperature"])
+                except ValueError:
+                    pass
+
+            self._log_prompt(current_gen.function_name, model, prompt, max_tokens, temp)
+            self._check_budget(state)
+
+            if media_parts and hasattr(self.adapter, "generate_multimodal"):
+                content = [{"type": "text", "text": prompt}] + media_parts
+                gen_result = await self.adapter.generate_multimodal(
+                    content,
+                    model=model,
+                    max_tokens=max_tokens,
+                    temperature=temp,
+                )
+            else:
+                gen_result = await self.adapter.generate(
+                    prompt=prompt,
+                    model=model,
+                    max_tokens=max_tokens,
+                    temperature=temp,
+                )
+
+            state.record_llm_call(gen_result)
+            last_content = gen_result.content
+
+            _log.info("GENERATE segment %d (%s) -> %d tokens, %.0fms",
+                      segment_count, current_gen.function_name,
+                      gen_result.output_tokens, gen_result.latency_ms)
+
+            current_gen = current_gen.next_segment
+
+        if stmt.target_variable and stmt.target_variable not in ("NONE", "_"):
+            state.set_var(stmt.target_variable, last_content)
+            _log.info("GENERATE chain done -> @%s (%d chars total)",
+                      stmt.target_variable, len(last_content))
+        else:
+            _log.info("GENERATE chain done -> [DISCARDED] (%d chars)", len(last_content))
 
     # ------------------------------------------------------------------ #
     # Workflow execution — typed INPUT param coercion                     #

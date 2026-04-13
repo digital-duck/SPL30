@@ -68,12 +68,13 @@ def list_adapters() -> list[str]:
 
 def _bootstrap() -> None:
     # 1. dd-llm bridge (preferred for standard cloud providers)
+    #    Use SPL30's MultiModalDDLLMBridge so generate_multimodal() works.
     _dd_ok = False
     try:
-        from spl3.adapters.dd_llm_bridge import DDLLMBridge
+        from spl3.adapters.dd_llm_bridge import MultiModalDDLLMBridge
         for _spl_name, _dd_name in _DD_LLM_PROVIDERS.items():
-            register_adapter(_spl_name, lambda p=_dd_name, **kw: DDLLMBridge(p, **kw))
-        _log.debug("dd-llm bridge registered: %s", ", ".join(_DD_LLM_PROVIDERS))
+            register_adapter(_spl_name, lambda p=_dd_name, **kw: MultiModalDDLLMBridge(p, **kw))
+        _log.debug("dd-llm multimodal bridge registered: %s", ", ".join(_DD_LLM_PROVIDERS))
         _dd_ok = True
     except ImportError:
         _log.debug("dd-llm not found; falling back to bespoke adapters")

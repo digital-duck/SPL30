@@ -1,0 +1,302 @@
+{
+  "_comment": "SPL 3.0 Cookbook Catalog (spl-go) — mirrors cookbook_catalog.json but uses 'spl-go' binary. SPL 3.0 text workflow features (CALL, CALL PARALLEL, IMPORT) are already implemented in spl-go. Recipes requiring Python run.py or the multimodal codec pipeline (IMAGE/AUDIO/VIDEO execution) are disabled.",
+  "_schema": {
+    "is_active": "bool   — included in default batch run (python cookbook/run_all.py --catalog-file cookbook/cookbook_catalog-go.json)",
+    "approval_status": "string — new | approved | wip | disabled | rejected"
+  },
+  "recipes": [
+    {
+      "id": "05",
+      "name": "Self-Refine",
+      "description": "CALL sub-workflow dispatch — iterative draft/critique/refine loop (TEXT → TEXT)",
+      "args": [
+        "spl-go",
+        "run",
+        "./cookbook/05_self_refine/self_refine.spl",
+        "--adapter",
+        "ollama",
+        "task=Write a haiku about the joy of coding"
+      ],
+      "dir": "05_self_refine",
+      "log": "self_refine",
+      "is_active": true,
+      "approval_status": "new",
+      "category": "agentic"
+    },
+    {
+      "id": "50",
+      "name": "Code Pipeline",
+      "description": "CALL sub-workflow chain — NDD closure: generate → review → improve → test → document → spec_judge (TEXT → TEXT)",
+      "args": [
+        "spl-go",
+        "run",
+        "./cookbook/50_code_pipeline/code_pipeline.spl",
+        "--adapter",
+        "ollama",
+        "spec=Write a binary search function that returns the index or -1"
+      ],
+      "dir": "50_code_pipeline",
+      "log": "code_pipeline",
+      "is_active": true,
+      "approval_status": "new",
+      "category": "agentic"
+    },
+    {
+      "id": "51",
+      "name": "Image Caption",
+      "description": "Requires Python run.py physical runner — not portable to spl-go",
+      "args": [
+        "spl-go",
+        "run",
+        "./cookbook/51_image_caption/image_caption.spl",
+        "--adapter",
+        "ollama",
+        "photo=cookbook/51_image_caption/sample/photo.jpg",
+        "model=gemma4:e4b"
+      ],
+      "dir": "51_image_caption",
+      "log": "image_caption",
+      "is_active": false,
+      "approval_status": "disabled",
+      "category": "multimodal"
+    },
+    {
+      "id": "52",
+      "name": "Audio Summary",
+      "description": "Requires Python run.py physical runner — not portable to spl-go",
+      "args": [
+        "spl-go",
+        "run",
+        "./cookbook/52_audio_summary/audio_summary.spl",
+        "--adapter",
+        "ollama",
+        "clip=cookbook/52_audio_summary/sample/clip.wav",
+        "model=gemma4:e4b"
+      ],
+      "dir": "52_audio_summary",
+      "log": "audio_summary",
+      "is_active": false,
+      "approval_status": "disabled",
+      "category": "multimodal"
+    },
+    {
+      "id": "53",
+      "name": "Video Summary",
+      "description": "Requires Python run.py physical runner — not portable to spl-go",
+      "args": [
+        "spl-go",
+        "run",
+        "./cookbook/53_video_summary/video_summary.spl",
+        "--adapter",
+        "ollama",
+        "video=cookbook/53_video_summary/sample/clip.mp4",
+        "model=gemma4"
+      ],
+      "dir": "53_video_summary",
+      "log": "video_summary",
+      "is_active": false,
+      "approval_status": "disabled",
+      "category": "multimodal"
+    },
+    {
+      "id": "54",
+      "name": "Text to Image",
+      "description": "Requires Python run.py physical runner — not portable to spl-go",
+      "args": [
+        "spl-go",
+        "run",
+        "./cookbook/54_text_to_image/text_to_image.spl",
+        "--adapter",
+        "openai",
+        "prompt=A serene mountain lake at golden hour, photorealistic"
+      ],
+      "dir": "54_text_to_image",
+      "log": "text_to_image",
+      "is_active": false,
+      "approval_status": "disabled",
+      "category": "multimodal"
+    },
+    {
+      "id": "55",
+      "name": "Text to Speech",
+      "description": "Requires Python run.py physical runner — not portable to spl-go",
+      "args": [
+        "spl-go",
+        "run",
+        "./cookbook/55_text_to_speech/text_to_speech.spl",
+        "--adapter",
+        "openai",
+        "text=Welcome to SPL 3.0 multimodal support."
+      ],
+      "dir": "55_text_to_speech",
+      "log": "text_to_speech",
+      "is_active": false,
+      "approval_status": "disabled",
+      "category": "multimodal"
+    },
+    {
+      "id": "56",
+      "name": "Text to Video",
+      "description": "Requires Python run.py physical runner — not portable to spl-go",
+      "args": [
+        "spl-go",
+        "run",
+        "./cookbook/56_text_to_video/text_to_video.spl",
+        "--adapter",
+        "openai",
+        "prompt=A duck walking through a quiet forest at dawn"
+      ],
+      "dir": "56_text_to_video",
+      "log": "text_to_video",
+      "is_active": false,
+      "approval_status": "disabled",
+      "category": "multimodal"
+    },
+    {
+      "id": "57",
+      "name": "Image Format Conversion",
+      "description": "Requires Python run.py + Pillow codec — not portable to spl-go",
+      "args": [
+        "spl-go",
+        "run",
+        "./cookbook/57_image_convert/image_convert.spl",
+        "--adapter",
+        "ollama",
+        "image=cookbook/57_image_convert/sample/photo.png",
+        "target_format=jpeg"
+      ],
+      "dir": "57_image_convert",
+      "log": "image_convert",
+      "is_active": false,
+      "approval_status": "disabled",
+      "category": "media"
+    },
+    {
+      "id": "58",
+      "name": "Image Restyle",
+      "description": "Requires Python run.py physical runner — not portable to spl-go",
+      "args": [
+        "spl-go",
+        "run",
+        "./cookbook/58_image_restyle/image_restyle.spl",
+        "--adapter",
+        "openai",
+        "image=cookbook/58_image_restyle/sample/photo.jpg",
+        "style=watercolor painting, soft edges, pastel tones"
+      ],
+      "dir": "58_image_restyle",
+      "log": "image_restyle",
+      "is_active": false,
+      "approval_status": "disabled",
+      "category": "multimodal"
+    },
+    {
+      "id": "59",
+      "name": "Audio Format Conversion",
+      "description": "Requires Python run.py + pydub codec — not portable to spl-go",
+      "args": [
+        "spl-go",
+        "run",
+        "./cookbook/59_audio_convert/audio_convert.spl",
+        "--adapter",
+        "ollama",
+        "audio=cookbook/59_audio_convert/sample/clip.wav",
+        "target_format=mp3"
+      ],
+      "dir": "59_audio_convert",
+      "log": "audio_convert",
+      "is_active": false,
+      "approval_status": "disabled",
+      "category": "media"
+    },
+    {
+      "id": "60",
+      "name": "Voice Dialogue",
+      "description": "Requires Python run.py physical runner — not portable to spl-go",
+      "args": [
+        "spl-go",
+        "run",
+        "./cookbook/60_voice_dialogue/voice_dialogue.spl",
+        "--adapter",
+        "openrouter",
+        "audio=cookbook/60_voice_dialogue/sample/question.mp3"
+      ],
+      "dir": "60_voice_dialogue",
+      "log": "voice_dialogue",
+      "is_active": false,
+      "approval_status": "disabled",
+      "category": "multimodal"
+    },
+    {
+      "id": "61",
+      "name": "Video to Audio",
+      "description": "Requires Python run.py + ffmpeg codec — not portable to spl-go",
+      "args": [
+        "spl-go",
+        "run",
+        "./cookbook/61_video_to_audio/video_to_audio.spl",
+        "--adapter",
+        "ollama",
+        "video=cookbook/61_video_to_audio/sample/clip.mp4"
+      ],
+      "dir": "61_video_to_audio",
+      "log": "video_to_audio",
+      "is_active": false,
+      "approval_status": "disabled",
+      "category": "media"
+    },
+    {
+      "id": "62",
+      "name": "Video to Image",
+      "description": "Requires Python run.py + ffmpeg codec — not portable to spl-go",
+      "args": [
+        "spl-go",
+        "run",
+        "./cookbook/62_video_to_image/video_to_image.spl",
+        "--adapter",
+        "ollama",
+        "video=cookbook/62_video_to_image/sample/clip.mp4"
+      ],
+      "dir": "62_video_to_image",
+      "log": "video_to_image",
+      "is_active": false,
+      "approval_status": "disabled",
+      "category": "multimodal"
+    },
+    {
+      "id": "63",
+      "name": "Parallel Code Review",
+      "description": "CALL PARALLEL — style, security, test reviews run concurrently; merged into one report (TEXT → TEXT)",
+      "args": [
+        "spl-go",
+        "run",
+        "./cookbook/63_parallel_code_review/parallel_code_review.spl",
+        "--adapter",
+        "ollama",
+        "code=def add(a, b): return a - b"
+      ],
+      "dir": "63_parallel_code_review",
+      "log": "parallel_code_review",
+      "is_active": true,
+      "approval_status": "new",
+      "category": "agentic"
+    },
+    {
+      "id": "64",
+      "name": "Parallel News Digest",
+      "description": "CALL PARALLEL — three news topics summarised concurrently; merged into a morning briefing (TEXT → TEXT)",
+      "args": [
+        "spl-go",
+        "run",
+        "./cookbook/64_parallel_news_digest/parallel_news_digest.spl",
+        "--adapter",
+        "ollama"
+      ],
+      "dir": "64_parallel_news_digest",
+      "log": "parallel_news_digest",
+      "is_active": true,
+      "approval_status": "new",
+      "category": "agentic"
+    }
+  ]
+}

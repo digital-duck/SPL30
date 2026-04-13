@@ -50,7 +50,7 @@ pip install Pillow
 
 ```bash
 # Reuse the image from recipe 50 (no download needed)
-cp cookbook/50_image_caption/sample/photo.jpg \
+cp cookbook/51_image_caption/sample/photo.jpg \
    cookbook/57_image_convert/sample/photo.jpg
 ```
 

@@ -1,6 +1,6 @@
 # SPL — Implemented Features
 
-*Last updated: 2026-04-13.*
+*Last updated: 2026-04-13 (session 2).*
 *SPL30 is the canonical source of truth for SPL language design and runtime features.*
 
 Status legend:
@@ -92,16 +92,19 @@ against SPL30 via **NDD closure** (`spl3 run --adapter echo` as oracle, `diff` a
 
 ### SPL 3.0 — Composition / Distribution Layer
 
-| Construct | Description | Status |
-|-----------|-------------|--------|
-| `IMPORT 'file.spl'` | Multi-file workflow composition | `[DONE]` |
-| `IMPORT 'file'` | Extension-optional import | `[DONE]` |
-| `CALL PARALLEL ... END` | Concurrent sub-workflow dispatch | `[DONE]` |
-| `INTO NONE` | Discard call result explicitly | `[DONE]` |
-| `{a, b, c}` SET literals | Unordered unique collection | `[DONE]` |
-| `NONE` / `NULL` literals | First-class null value | `[PARTIAL]` — SPL2 base parser gap |
-| `IMAGE` / `AUDIO` / `VIDEO` param types | Multi-modal INPUT type annotations | `[DONE]` |
-| `STORAGE(backend, path)` param type | Persistent storage binding | `[DONE]` |
+| Construct | Description | Python | Go | TypeScript |
+|-----------|-------------|--------|----|------------|
+| `IMPORT 'file.spl'` | Multi-file workflow composition | `[DONE]` | `[DONE]` | `[DONE]` |
+| `IMPORT 'file'` | Extension-optional import | `[DONE]` | `[DONE]` | `[DONE]` |
+| `CALL PARALLEL ... END` | Concurrent sub-workflow dispatch | `[DONE]` | `[DONE]` | `[DONE]` |
+| `INTO NONE` | Discard call result explicitly | `[DONE]` | `[DONE]` | `[DONE]` |
+| `{a, b, c}` SET literals | Unordered unique collection | `[DONE]` | `[TODO]` | `[TODO]` |
+| `NONE` / `NULL` literals | First-class null value | `[PARTIAL]` | `[DONE]` | `[DONE]` |
+| `NOT` / `AND` / `OR` in WHILE | Compound/negation loop conditions | `[DONE]` | `[DONE]` | `[DONE]` |
+| `IMAGE` / `AUDIO` / `VIDEO` param types | Multimodal type annotations (parse) | `[DONE]` | `[DONE]` | `[DONE]` |
+| `IMAGE` / `AUDIO` execution (codec → LLM) | Multimodal content dispatch at runtime | `[DONE]` | `[TODO]` | `[TODO]` |
+| `VIDEO` execution (codec → LLM) | Video frame extraction + dispatch | `[TODO]` | `[TODO]` | `[TODO]` |
+| `STORAGE(backend, path)` param type | Persistent storage binding | `[DONE]` | `[DONE]` | `[TODO]` |
 
 ---
 
@@ -234,6 +237,20 @@ Node.js-specific APIs — only Web APIs (`fetch`, `console`, `Map`, `Promise`).
 | `ACCOUNTING: BILLABLE_TO` / `BUDGET_LIMIT` | `[DONE]` |
 | Moma Points compute currency | `[TODO]` |
 
+### School Momagrid
+
+One Momagrid deployment model targeting K-12 and university education worldwide.
+
+| Component | Description | Status |
+|-----------|-------------|--------|
+| School Hub (mini-PC + Ollama) | One Hub per school; all students connect via browser | `[TODO]` — deployment guide |
+| Student gaming PC as volunteer node | GPU contributed to Hub during school hours | `[TODO]` — enrollment flow |
+| `claude_cli` adapter cost model | Flat subscription routing; zero per-token billing for schools | `[DONE]` — adapter exists |
+| Hybrid local+Claude routing | Ollama for routine tasks; Claude CLI for complex reasoning | `[DONE]` — SPL workflow routing |
+| Campus data isolation | No student data leaves campus; zero cloud dependency | `[DONE]` — local inference by design |
+| District/national federation | Schools peer via Hub-to-Hub protocol; shared workflow library | `[DONE]` — peering protocol |
+| School Momagrid vision document | Architecture, cost model, Global South angle | `[DONE]` — `SPL20/docs/School-Momagrid.md` |
+
 ---
 
 ## Code-RAG (Text2SPL)
@@ -274,13 +291,27 @@ Node.js-specific APIs — only Web APIs (`fetch`, `console`, `Map`, `Promise`).
 
 ## Cookbook Recipes
 
-| id | Recipe | Constructs exercised | Status |
-|----|--------|---------------------|--------|
-| 05 | `self_refine` | WORKFLOW, GENERATE, WHILE, EVALUATE, CALL, EXCEPTION | `[DONE]` |
-| 50 | `image_caption` | IMAGE param, multi-modal adapter | `[DONE]` |
-| 51 | `audio_summary` | AUDIO param | `[DONE]` |
-| 52 | `text_to_image` | GENERATE + external tool call | `[DONE]` |
-| 53 | `text_to_speech` | GENERATE + TTS adapter | `[DONE]` |
-| 54 | `image_restyle` | IMAGE + TEXT → IMAGE pipeline | `[DONE]` |
-| 55 | `voice_dialogue` | AUDIO + TEXT → TEXT + AUDIO pipeline | `[DONE]` |
-| 56 | `code_pipeline` | CALL chain, WHILE @item IN @items, write_file, clean_code, spec_judge | `[DONE]` |
+SPL30 cookbook: recipes 05 (entry point) and 50–64 (SPL 3.0 capability set).
+Tier 1 = Ollama only · Tier 2 = OpenAI key · Tier 3 = OpenRouter key · Tier 4 = all keys.
+
+| id | Recipe | Flow | Tier | Constructs exercised | spl3 run | spl-go | spl-ts |
+|----|--------|------|------|---------------------|----------|--------|--------|
+| 05 | `self_refine` | TEXT→TEXT | 1 | WORKFLOW, GENERATE, WHILE, EVALUATE, CALL sub-workflow, EXCEPTION | `[DONE]` | `[TODO]` | `[TODO]` |
+| 50 | `code_pipeline` | TEXT→TEXT | 1 | CALL chain, WHILE @item IN @items, spec_judge closure | `[DONE]` | `[TODO]` | `[TODO]` |
+| 51 | `image_caption` | IMAGE→TEXT | 1 | IMAGE param, encode_image, generate_multimodal | `[DONE]` | `[TODO]` | `[TODO]` |
+| 52 | `audio_summary` | AUDIO→TEXT | 1 | AUDIO param, encode_audio, WAV/MP3 auto-convert | `[DONE]` | `[TODO]` | `[TODO]` |
+| 53 | `video_summary` | VIDEO→TEXT | 1 | VIDEO param, run.py runner | `[TODO]` | `[TODO]` | `[TODO]` |
+| 54 | `text_to_image` | TEXT→IMAGE | 2 | DALL-E 3 generation, IMAGE output | `[TODO]` | `[TODO]` | `[TODO]` |
+| 55 | `text_to_speech` | TEXT→AUDIO | 2 | OpenAI TTS, AUDIO output | `[TODO]` | `[TODO]` | `[TODO]` |
+| 56 | `text_to_video` | TEXT→VIDEO | 2 | Veo 2 / RunwayML, VIDEO output | `[TODO]` | `[TODO]` | `[TODO]` |
+| 57 | `image_convert` | IMAGE→IMAGE | 1 | Pillow codec, format conversion | `[DONE]` | `[TODO]` | `[TODO]` |
+| 58 | `image_restyle` | IMAGE→IMAGE | 4 | gemma4:e4b vision + DALL-E 3 | `[TODO]` | `[TODO]` | `[TODO]` |
+| 59 | `audio_convert` | AUDIO→AUDIO | 1 | pydub codec, format conversion | `[DONE]` | `[TODO]` | `[TODO]` |
+| 60 | `voice_dialogue` | AUDIO→AUDIO | 4 | LFM-2.5 transcribe + gemma4 + TTS | `[TODO]` | `[TODO]` | `[TODO]` |
+| 61 | `video_to_audio` | VIDEO→AUDIO | 1 | ffmpeg audio extraction | `[DONE]` | `[TODO]` | `[TODO]` |
+| 62 | `video_to_image` | VIDEO→IMAGE | 1 | ffmpeg frame extraction, optional caption | `[TODO]` | `[TODO]` | `[TODO]` |
+| 63 | `parallel_code_review` | TEXT→TEXT | 1 | CALL PARALLEL (style + security + test concurrent) | `[DONE]` | `[TODO]` | `[TODO]` |
+| 64 | `parallel_news_digest` | TEXT→TEXT | 1 | CALL PARALLEL (3 topics concurrent, merge briefing) | `[DONE]` | `[TODO]` | `[TODO]` |
+
+*spl-go and spl-ts columns: `[TODO]` means the recipe has not been run yet against those runtimes.
+CALL/CALL PARALLEL/IMPORT are implemented in both — testing (setting `approval_status` to `approved`) is the next step.*

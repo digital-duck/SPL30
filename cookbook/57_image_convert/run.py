@@ -9,22 +9,22 @@ Usage
 -----
   # PNG → JPEG (default quality 85)
   python cookbook/57_image_convert/run.py \\
-      --image cookbook/50_image_caption/sample/photo.jpg \\
+      --image cookbook/51_image_caption/sample/photo.jpg \\
       --target-format png
 
   # JPEG → WebP (quality 90)
   python cookbook/57_image_convert/run.py \\
-      --image cookbook/50_image_caption/sample/photo.jpg \\
+      --image cookbook/51_image_caption/sample/photo.jpg \\
       --target-format webp --quality 90
 
   # JPEG → BMP (lossless)
   python cookbook/57_image_convert/run.py \\
-      --image cookbook/50_image_caption/sample/photo.jpg \\
+      --image cookbook/51_image_caption/sample/photo.jpg \\
       --target-format bmp
 
   # Custom output directory
   python cookbook/57_image_convert/run.py \\
-      --image cookbook/50_image_caption/sample/photo.jpg \\
+      --image cookbook/51_image_caption/sample/photo.jpg \\
       --target-format webp --output-dir /tmp/converted
 """
 
