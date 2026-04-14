@@ -1,0 +1,1 @@
+Write a Python function binary_search(arr: list[int], target: int) -> int that takes a sorted list and returns the index of target, or -1 if not found. Use iterative approach with O(log n) time complexity.

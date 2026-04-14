@@ -37,14 +37,14 @@ WORKFLOW test_code
         @code    TEXT,
         @spec    TEXT DEFAULT '',
         @lang    TEXT DEFAULT 'python',
-        @model   TEXT DEFAULT 'gemma4',
+        @test_model   TEXT DEFAULT 'gemma4',
         @log_dir TEXT DEFAULT 'cookbook/50_code_pipeline/logs-spl'
     OUTPUT: @test_result TEXT
 DO
     LOGGING f'[04_test_code] started | lang={@lang}' LEVEL INFO
     GENERATE run_tests(@code, @spec, @lang)
         WITH OUTPUT BUDGET 1024 TOKENS
-        USING MODEL @model
+        USING MODEL @test_model
         INTO @test_result
     CALL write_file(f'{@log_dir}/tests/{@lang}/result.md', @test_result) INTO NONE
     LOGGING f'[04_test_code] done | result={@test_result[:50]}' LEVEL INFO

@@ -21,7 +21,7 @@ WORKFLOW generate_code
     INPUT:
         @spec    TEXT,
         @lang    TEXT DEFAULT 'python',
-        @model   TEXT DEFAULT 'gemma4',
+        @generate_model   TEXT DEFAULT 'gemma4',
         @log_dir TEXT DEFAULT 'cookbook/50_code_pipeline/logs-spl'
     OUTPUT: @code TEXT
 DO
@@ -38,7 +38,7 @@ DO
 
     GENERATE coder(@spec, @lang)
         WITH OUTPUT BUDGET 2048 TOKENS
-        USING MODEL @model
+        USING MODEL @generate_model
         INTO @code
     CALL clean_code(@code) INTO @code
     CALL write_file(f'{@log_dir}/target/{@lang}/code.{@ext}', @code) INTO NONE

@@ -135,7 +135,7 @@ Changing the **implementation** of a workflow means editing the `.spl` file and 
 
 Before describing the components, it is worth naming the principle that validates all of them.
 
-**NDD (Non-Deterministic Development) closure** is the methodology for achieving deterministic correctness guarantees in an inherently non-deterministic system. AI systems are non-deterministic by nature: the same prompt, the same model, the same hardware can produce different outputs on different runs. This makes traditional unit testing insufficient — a test that passes today may fail tomorrow not because the code changed, but because the model did.
+**NDD (Natural-language Driven Development) closure** is the methodology for achieving deterministic correctness guarantees in an inherently non-deterministic system. AI systems are non-deterministic by nature: the same prompt, the same model, the same hardware can produce different outputs on different runs. This makes traditional unit testing insufficient — a test that passes today may fail tomorrow not because the code changed, but because the model did.
 
 NDD closure solves this by separating the deterministic structure of a workflow from the non-deterministic LLM calls within it. The closure loop is:
 
@@ -154,6 +154,8 @@ NDD closure applies at every level of the SPL stack:
 - **Momagrid dispatch correctness:** does distributing a workflow across Hubs produce the same result as running it on a single node?
 
 Every cookbook recipe is a free test case. Every new recipe that runs cleanly under `--adapter echo` extends the closure coverage by the constructs it exercises.
+
+**Current status:** NDD closure is verified manually today — `spl3 run --adapter echo` and `spl-go run --adapter echo` have been run against recipes 05, 50, 63, 64 and produce semantically equivalent output. Automated cross-runtime echo-adapter tests are the next engineering milestone (P1 from the Opus exam report, 2026-04-14). Until that harness exists, NDD closure is a verified methodology, not yet an enforced CI gate.
 
 ---
 
@@ -174,7 +176,7 @@ Phase 1: Intent → spec.md
     Unresolved ambiguities here become silent wrong assumptions in generated code.
     The result is a structured spec.md — human-readable, Git-versionable.
 
-    COMMIT spec.md WITH status = 'review'   ← human gate
+    RETURN @spec_md WITH status = 'review'   ← human gate
 
 Phase 2: spec.md → .spl
     With an approved spec, the LLM generates the .spl script(s).
@@ -183,23 +185,28 @@ Phase 2: spec.md → .spl
     to translate — not a blank canvas to fill.
 ```
 
-`text2SPL` is itself written in SPL:
+`text2SPL` currently exists as a command in `spl-go` and Python. The target design is a
+self-hosted SPL workflow — expressing the tool in the language it generates, closing the loop:
 
 ```sql
+-- Target design (not yet implemented as .spl)
 WORKFLOW text2spl
     INPUT:  @user_intent TEXT,
             @mode        TEXT DEFAULT 'workflow'
     OUTPUT: @spl_script  TEXT
 DO
     GENERATE spec_elicitor(@user_intent, @mode) INTO @spec_md
-    COMMIT @spec_md WITH status = 'review'   -- human approval gate
+    RETURN @spec_md WITH status = 'review'   -- human approval gate
 
     GENERATE spl_generator(@spec_md) INTO @spl_script
-    COMMIT @spl_script
+    RETURN @spl_script
 END
 ```
 
-The `COMMIT WITH status='review'` pause is not a workaround — it is a first-class workflow step that makes the human review gate auditable, reproducible, and part of the provenance chain. The approved `spec.md` is the artifact of record; the `.spl` script is derived from it. If the workflow behaves unexpectedly, trace back to the spec.
+The `RETURN ... WITH status='review'` pause is a first-class workflow step that makes the
+human review gate auditable, reproducible, and part of the provenance chain. The approved
+`spec.md` is the artifact of record; the `.spl` script is derived from it. If the workflow
+behaves unexpectedly, trace back to the spec.
 
 **text2SPL is the reason SPL is accessible without programming knowledge.** A teacher builds a tutoring workflow through conversation. A doctor builds a clinical summary workflow through a GUI. A student builds a research assistant by describing what they want. None of them writes a single line of `.spl` directly — but all of them benefit from the full rigour of the logical layer, the compiler, and the execution grid beneath it.
 
@@ -394,7 +401,7 @@ SPL and Momagrid are not vaporware. As of April 2026:
 |-----------|--------|-------|
 | SPL30 Python (`spl3`) | Production | Reference implementation; multimodal (IMAGE, AUDIO); full SPL 3.0 feature set |
 | SPL.go (`spl-go`) | Production | Single binary; SPL 3.0 text workflows verified against SPL30 cookbook |
-| Momagrid Hub | Production | Hub-to-Hub federation; CALL PARALLEL dispatch; 3-node benchmark: 3.1× speedup |
+| Momagrid Hub | Production | Hub-to-Hub federation; CALL PARALLEL dispatch; 3-node LAN grid verified (benchmark pending reproducible run) |
 | Cookbook recipes 05, 50, 63, 64 | Verified on Python + Go | Self-refine, code pipeline, parallel code review, parallel news digest |
 | Multimodal (IMAGE, AUDIO) | Verified on Python | Recipes 51, 52; Ollama vision + WAV conversion |
 | NDD closure loop | Working | `--adapter echo` as oracle; deterministic correctness validation |
@@ -406,7 +413,7 @@ SPL and Momagrid are not vaporware. As of April 2026:
 | SPL.ts (`spl-ts`) | In progress | TypeScript port; UI layer / browser target |
 | `splc` v1 | Design phase | `--target go` and `--target py`; NDD closure as acceptance criterion |
 | `text2SPL` | Design phase | Multi-turn spec elicitation → `.spl` generation |
-| `splc judge` v1 | Design phase | LLM-as-judge prototype for Agentic Integrity |
+| `splc judge` v1 | Design phase | SPL recipe exists as design sketch; standalone tool is the build target |
 
 **On the horizon:**
 

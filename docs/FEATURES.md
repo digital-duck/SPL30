@@ -1,6 +1,6 @@
 # SPL — Implemented Features
 
-*Last updated: 2026-04-13 (session 3).*
+*Last updated: 2026-04-14 (session 4).*
 *SPL30 is the canonical source of truth for SPL language design and runtime features.*
 
 Status legend:
@@ -296,8 +296,8 @@ Tier 1 = Ollama only · Tier 2 = OpenAI key · Tier 3 = OpenRouter key · Tier 4
 
 | id | Recipe | Flow | Tier | Constructs exercised | spl3 run | spl-go | spl-ts |
 |----|--------|------|------|---------------------|----------|--------|--------|
-| 05 | `self_refine` | TEXT→TEXT | 1 | WORKFLOW, GENERATE, WHILE, EVALUATE, CALL sub-workflow, EXCEPTION | `[DONE]` | `[DONE]` ¹ | `[TODO]` |
-| 50 | `code_pipeline` | TEXT→TEXT | 1 | CALL chain, WHILE @item IN @items, spec_judge closure | `[DONE]` | `[DONE]` ¹ | `[TODO]` |
+| 05 | `self_refine` | TEXT→TEXT | 1 | WORKFLOW, GENERATE, WHILE, EVALUATE, CALL sub-workflow, EXCEPTION | `[DONE]` | `[DONE]` | `[DONE]` |
+| 50 | `code_pipeline` | TEXT→TEXT | 1 | CALL chain, WHILE @item IN @items, spec_judge closure | `[DONE]` | `[DONE]` | `[DONE]` |
 | 51 | `image_caption` | IMAGE→TEXT | 1 | IMAGE param, encode_image, generate_multimodal | `[DONE]` | `[TODO]` ² | `[TODO]` ² |
 | 52 | `audio_summary` | AUDIO→TEXT | 1 | AUDIO param, encode_audio, WAV/MP3 auto-convert | `[DONE]` | `[TODO]` ² | `[TODO]` ² |
 | 53 | `video_summary` | VIDEO→TEXT | 1 | VIDEO param, run.py runner | `[TODO]` | `[TODO]` ² | `[TODO]` ² |
@@ -310,8 +310,6 @@ Tier 1 = Ollama only · Tier 2 = OpenAI key · Tier 3 = OpenRouter key · Tier 4
 | 60 | `voice_dialogue` | AUDIO→AUDIO | 4 | LFM-2.5 transcribe + gemma4 + TTS | `[TODO]` | `[TODO]` ² | `[TODO]` ² |
 | 61 | `video_to_audio` | VIDEO→AUDIO | 1 | ffmpeg audio extraction | `[DONE]` | `[TODO]` ² | `[TODO]` ² |
 | 62 | `video_to_image` | VIDEO→IMAGE | 1 | ffmpeg frame extraction, optional caption | `[TODO]` | `[TODO]` ² | `[TODO]` ² |
-| 63 | `parallel_code_review` | TEXT→TEXT | 1 | CALL PARALLEL (style + security + test concurrent) | `[DONE]` | `[DONE]` ¹ | `[TODO]` |
-| 64 | `parallel_news_digest` | TEXT→TEXT | 1 | CALL PARALLEL (3 topics concurrent, merge briefing) | `[DONE]` | `[DONE]` ¹ | `[TODO]` |
-
-¹ Verified with `--adapter echo` (NDD oracle) after parser fixes: `RETURN` alias, `INTO NONE`, `WITH OUTPUT BUDGET @var`, IMPORT auto-extension, keyword-as-identifier in param lists and named args (e.g. `security`, `model=@model`). Ollama live run pending.
+| 63 | `parallel_code_review` | TEXT→TEXT | 1 | CALL PARALLEL (style + security + test concurrent) | `[DONE]` | `[DONE]` | `[DONE]` |
+| 64 | `parallel_news_digest` | TEXT→TEXT | 1 | CALL PARALLEL (3 topics concurrent, merge briefing) | `[DONE]` | `[DONE]` | `[DONE]` |
 ² Multimodal execution requires codec pipeline (`execGenerateInto` override + image/audio encode). Go/TS implementation is a separate TODO.

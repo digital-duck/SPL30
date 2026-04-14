@@ -33,14 +33,14 @@ $$;
 WORKFLOW extract_spec
     INPUT:
         @code    TEXT,
-        @model   TEXT DEFAULT 'gemma4',
+        @extract_model   TEXT DEFAULT 'gemma4',
         @log_dir TEXT DEFAULT 'cookbook/50_code_pipeline/logs-spl'
     OUTPUT: @out_spec TEXT
 DO
     LOGGING '[06_extract_spec] reverse-engineering spec from implementation ...' LEVEL INFO
     GENERATE reverse_spec(@code)
         WITH OUTPUT BUDGET 1024 TOKENS
-        USING MODEL @model
+        USING MODEL @extract_model
         INTO @out_spec
     CALL write_file(f'{@log_dir}/spec/extracted.md', @out_spec) INTO NONE
     LOGGING f'[06_extract_spec] done | out_spec_len={len(@out_spec)}' LEVEL INFO

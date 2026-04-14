@@ -29,7 +29,7 @@ WORKFLOW improve_code
         @feedback    TEXT,
         @test_result TEXT DEFAULT '',
         @lang        TEXT DEFAULT 'python',
-        @model       TEXT DEFAULT 'gemma4',
+        @improve_model       TEXT DEFAULT 'gemma4',
         @log_dir     TEXT DEFAULT 'cookbook/50_code_pipeline/logs-spl'
     OUTPUT: @improved TEXT
 DO
@@ -46,7 +46,7 @@ DO
 
     GENERATE refactor(@code, @feedback, @test_result, @lang)
         WITH OUTPUT BUDGET 2048 TOKENS
-        USING MODEL @model
+        USING MODEL @improve_model
         INTO @improved
     CALL clean_code(@improved) INTO @improved
     CALL write_file(f'{@log_dir}/target/{@lang}/code.{@ext}', @improved) INTO NONE

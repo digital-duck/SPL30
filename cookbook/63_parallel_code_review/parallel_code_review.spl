@@ -21,11 +21,11 @@
 -- Run locally (Ollama):
 --   spl3 run parallel_code_review.spl code="def add(a, b): return a - b"
 --   spl3 run parallel_code_review.spl \
---       code="$(cat my_module.py)" lang=python model=gemma4
+--       code="$(cat my_module.py)" lang=python review_model=gemma4
 --
 -- Run with spl-go:
 --   spl-go run parallel_code_review.spl \
---       code="def add(a, b): return a - b" --adapter ollama -m gemma4
+--       code="def add(a, b): return a - b" --adapter ollama --param review_model=gemma3
 
 IMPORT '00_style_review'
 IMPORT '01_security_audit'
@@ -61,26 +61,26 @@ WORKFLOW parallel_code_review
     INPUT:
         @code    TEXT,
         @lang    TEXT    DEFAULT 'python',
-        @model   TEXT    DEFAULT 'gemma4',
+        @review_model   TEXT    DEFAULT 'gemma4',
         @log_dir TEXT    DEFAULT 'cookbook/63_parallel_code_review/logs-spl'
     OUTPUT: @report TEXT
 DO
-    LOGGING f'[parallel_code_review] starting 3-way parallel review | lang={@lang} model={@model}' LEVEL INFO
+    LOGGING f'[parallel_code_review] starting 3-way parallel review | lang={@lang} review_model={@review_model}' LEVEL INFO
 
     -- Three independent quality checks run concurrently.
     -- style_review, security_audit, and test_generator all read @code
     -- but write only to their own INTO @var — no interference.
     CALL PARALLEL
-        style_review   (@code, lang=@lang, model=@model, log_dir=@log_dir) INTO @style_fb,
-        security_audit (@code, lang=@lang, model=@model, log_dir=@log_dir) INTO @sec_fb,
-        test_generator (@code, lang=@lang, model=@model, log_dir=@log_dir) INTO @test_fb
+        style_review   (@code, lang=@lang, review_model=@review_model, log_dir=@log_dir) INTO @style_fb,
+        security_audit (@code, lang=@lang, review_model=@review_model, log_dir=@log_dir) INTO @sec_fb,
+        test_generator (@code, lang=@lang, review_model=@review_model, log_dir=@log_dir) INTO @test_fb
     END
 
     LOGGING '[parallel_code_review] parallel checks complete — merging into report' LEVEL INFO
 
     GENERATE merge_reviews(@style_fb, @sec_fb, @test_fb)
         WITH OUTPUT BUDGET 1024 TOKENS
-        USING MODEL @model
+        USING MODEL @review_model
         INTO @report
 
     LOGGING f'[parallel_code_review] done | report_len={len(@report)}' LEVEL INFO
@@ -88,7 +88,7 @@ DO
 
 EXCEPTION
     WHEN ModelUnavailable THEN
-        LOGGING f'[parallel_code_review] model unavailable: {@model}' LEVEL ERROR
+        LOGGING f'[parallel_code_review] model unavailable: {@review_model}' LEVEL ERROR
         RETURN '[ERROR] Model unavailable.' WITH status = 'failed'
     WHEN BudgetExceeded THEN
         LOGGING '[parallel_code_review] token budget exceeded during merge' LEVEL WARN

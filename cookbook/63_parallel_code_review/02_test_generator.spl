@@ -24,14 +24,14 @@ WORKFLOW test_generator
     INPUT:
         @code    TEXT,
         @lang    TEXT DEFAULT 'python',
-        @model   TEXT DEFAULT 'gemma4',
+        @review_model   TEXT DEFAULT 'gemma4',
         @log_dir TEXT DEFAULT ''
     OUTPUT: @tests TEXT
 DO
     LOGGING f'[test_generator] lang={@lang}' LEVEL DEBUG
     GENERATE test_generator_prompt(@code, @lang)
         WITH OUTPUT BUDGET 512 TOKENS
-        USING MODEL @model
+        USING MODEL @review_model
         INTO @tests
     COMMIT @tests
 END

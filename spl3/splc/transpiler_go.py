@@ -110,6 +110,33 @@ class GoTranspiler:
         res_line = f"func {name}({', '.join(params)}) (result string, status string, iterations int, err error) {{"
         self.indent_level = 1
         body_lines = []
+        # Declare local variables used in the workflow
+        vars_to_declare = set()
+        for stmt in wf.body:
+            if isinstance(stmt, AssignmentStatement): vars_to_declare.add(stmt.variable.lstrip('@'))
+            if isinstance(stmt, GenerateIntoStatement): vars_to_declare.add(stmt.target_variable.lstrip('@'))
+            if isinstance(stmt, CallStatement) and stmt.target_variable: vars_to_declare.add(stmt.target_variable.lstrip('@'))
+            # Nested blocks (WHILE, EVALUATE)
+            if hasattr(stmt, 'body'):
+                for sub in stmt.body:
+                    if isinstance(sub, AssignmentStatement): vars_to_declare.add(sub.variable.lstrip('@'))
+                    if isinstance(sub, GenerateIntoStatement): vars_to_declare.add(sub.target_variable.lstrip('@'))
+            if hasattr(stmt, 'when_clauses'):
+                for clause in stmt.when_clauses:
+                    for sub in clause.statements:
+                        if isinstance(sub, AssignmentStatement): vars_to_declare.add(sub.variable.lstrip('@'))
+                        if isinstance(sub, GenerateIntoStatement): vars_to_declare.add(sub.target_variable.lstrip('@'))
+
+        # Exclude parameters
+        for p in wf.inputs:
+            vars_to_declare.discard(p.name.lstrip('@'))
+        
+        for v in sorted(vars_to_declare):
+            if v == "iteration":
+                body_lines.append(f"{self.indent()}var {v} int")
+            else:
+                body_lines.append(f"{self.indent()}var {v} string")
+
         for stmt in wf.body:
             body_lines.append(self.transpile_statement(stmt))
         self.indent_level = 0

@@ -19,9 +19,10 @@
 -- Run locally (Ollama):
 --   spl3 run parallel_news_digest.spl
 --   spl3 run parallel_news_digest.spl topic_tech="quantum computing breakthroughs"
+--   spl3 run parallel_news_digest.spl digest_model=gemma4
 --
 -- Run with spl-go:
---   spl-go run parallel_news_digest.spl --adapter ollama -m gemma4
+--   spl-go run parallel_news_digest.spl --adapter ollama --param digest_model=gemma3
 --   spl-go run parallel_news_digest.spl --adapter echo   -- dry-run
 
 -- ── Prompt functions ───────────────────��──────────────────────────────────────
@@ -63,14 +64,14 @@ WORKFLOW summarise_single
     INPUT:
         @topic   TEXT,
         @context TEXT    DEFAULT '',
-        @model   TEXT    DEFAULT 'gemma4',
+        @digest_model   TEXT    DEFAULT 'gemma4',
         @log_dir TEXT    DEFAULT ''
     OUTPUT: @summary TEXT
 DO
     LOGGING f'[summarise_single] topic="{@topic}"' LEVEL DEBUG
     GENERATE summarise_topic(@topic, @context)
         WITH OUTPUT BUDGET 256 TOKENS
-        USING MODEL @model
+        USING MODEL @digest_model
         INTO @summary
     COMMIT @summary
 END
@@ -82,28 +83,28 @@ WORKFLOW parallel_news_digest
         @topic_tech     TEXT    DEFAULT 'AI and large language models',
         @topic_science  TEXT    DEFAULT 'space exploration and astronomy',
         @topic_business TEXT    DEFAULT 'global markets and energy transition',
-        @model          TEXT    DEFAULT 'gemma4',
+        @digest_model   TEXT    DEFAULT 'gemma4',
         @output_budget  INTEGER DEFAULT 512,
         @log_dir        TEXT    DEFAULT 'cookbook/64_parallel_news_digest/logs-spl'
     OUTPUT: @digest TEXT
 DO
-    LOGGING f'[parallel_news_digest] model={@model}' LEVEL INFO
+    LOGGING f'[parallel_news_digest] digest_model={@digest_model}' LEVEL INFO
     LOGGING f'[parallel_news_digest] topics: "{@topic_tech}" | "{@topic_science}" | "{@topic_business}"' LEVEL INFO
 
     -- Three independent summaries run concurrently.
     -- Each branch receives a snapshot of the parent scope; results flow back
     -- only via INTO @var — no shared mutable state between branches.
     CALL PARALLEL
-        summarise_single(@topic_tech,     model=@model, log_dir=@log_dir) INTO @tech_summary,
-        summarise_single(@topic_science,  model=@model, log_dir=@log_dir) INTO @sci_summary,
-        summarise_single(@topic_business, model=@model, log_dir=@log_dir) INTO @biz_summary
+        summarise_single(@topic_tech,     digest_model=@digest_model, log_dir=@log_dir) INTO @tech_summary,
+        summarise_single(@topic_science,  digest_model=@digest_model, log_dir=@log_dir) INTO @sci_summary,
+        summarise_single(@topic_business, digest_model=@digest_model, log_dir=@log_dir) INTO @biz_summary
     END
 
     LOGGING '[parallel_news_digest] parallel summaries complete — merging into digest' LEVEL INFO
 
     GENERATE morning_briefing(@tech_summary, @sci_summary, @biz_summary)
         WITH OUTPUT BUDGET @output_budget TOKENS
-        USING MODEL @model
+        USING MODEL @digest_model
         INTO @digest
 
     LOGGING f'[parallel_news_digest] done | digest_len={len(@digest)}' LEVEL INFO
@@ -111,7 +112,7 @@ DO
 
 EXCEPTION
     WHEN ModelUnavailable THEN
-        LOGGING f'[parallel_news_digest] model unavailable: {@model}' LEVEL ERROR
+        LOGGING f'[parallel_news_digest] model unavailable: {@digest_model}' LEVEL ERROR
         RETURN '[ERROR] Model unavailable.' WITH status = 'failed'
     WHEN BudgetExceeded THEN
         LOGGING '[parallel_news_digest] token budget exceeded' LEVEL WARN

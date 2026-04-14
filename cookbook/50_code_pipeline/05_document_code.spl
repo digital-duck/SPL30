@@ -38,14 +38,14 @@ WORKFLOW document_code
         @code    TEXT,
         @spec    TEXT DEFAULT '',
         @lang    TEXT DEFAULT 'python',
-        @model   TEXT DEFAULT 'gemma4',
+        @document_model   TEXT DEFAULT 'gemma4',
         @log_dir TEXT DEFAULT 'cookbook/50_code_pipeline/logs-spl'
     OUTPUT: @docs TEXT
 DO
     LOGGING f'[05_document_code] started | lang={@lang}' LEVEL INFO
     GENERATE write_docs(@code, @spec, @lang)
         WITH OUTPUT BUDGET 2048 TOKENS
-        USING MODEL @model
+        USING MODEL @document_model
         INTO @docs
     CALL write_file(f'{@log_dir}/target/{@lang}/docs.md', @docs) INTO NONE
     LOGGING f'[05_document_code] done | docs_len={len(@docs)}' LEVEL INFO

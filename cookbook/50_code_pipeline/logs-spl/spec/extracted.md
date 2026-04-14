@@ -15,7 +15,7 @@ Write clean, correct, well-structured python code for the following specificatio
 Return only the code — no explanation, no markdown fences.
 
 Specification:
-add two numbers
+test
 
 Review feedback:
 
@@ -33,7 +33,7 @@ Write clean, correct, well-structured python code for the following specificatio
 Return only the code — no explanation, no markdown fences.
 
 Specification:
-add two numbers
+test
 
 
 Test failures (if any):

@@ -52,14 +52,14 @@ WORKFLOW spec_judge
     INPUT:
         @spec     TEXT,
         @out_spec TEXT,
-        @model    TEXT DEFAULT 'gemma4',
+        @judge_model    TEXT DEFAULT 'gemma4',
         @log_dir  TEXT DEFAULT 'cookbook/50_code_pipeline/logs-spl'
     OUTPUT: @closure_report TEXT
 DO
     LOGGING '[07_spec_judge] comparing original spec vs derived spec ...' LEVEL INFO
     GENERATE judge_closure(@spec, @out_spec)
         WITH OUTPUT BUDGET 2048 TOKENS
-        USING MODEL @model
+        USING MODEL @judge_model
         INTO @closure_report
     CALL write_file(f'{@log_dir}/spec/closure_report.md', @closure_report) INTO NONE
     EVALUATE @closure_report

@@ -23,14 +23,14 @@ WORKFLOW review_code
     INPUT:
         @code    TEXT,
         @lang    TEXT DEFAULT 'python',
-        @model   TEXT DEFAULT 'gemma4',
+        @review_model   TEXT DEFAULT 'gemma4',
         @log_dir TEXT DEFAULT 'cookbook/50_code_pipeline/logs-spl'
     OUTPUT: @feedback TEXT
 DO
     LOGGING f'[02_review_code] started | lang={@lang}' LEVEL INFO
     GENERATE reviewer(@code, @lang)
         WITH OUTPUT BUDGET 1024 TOKENS
-        USING MODEL @model
+        USING MODEL @review_model
         INTO @feedback
     CALL write_file(f'{@log_dir}/target/{@lang}/review.md', @feedback) INTO NONE
     LOGGING f'[02_review_code] done | feedback_len={len(@feedback)}' LEVEL INFO

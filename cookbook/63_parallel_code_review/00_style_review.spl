@@ -25,14 +25,14 @@ WORKFLOW style_review
     INPUT:
         @code    TEXT,
         @lang    TEXT DEFAULT 'python',
-        @model   TEXT DEFAULT 'gemma4',
+        @review_model   TEXT DEFAULT 'gemma4',
         @log_dir TEXT DEFAULT ''
     OUTPUT: @feedback TEXT
 DO
     LOGGING f'[style_review] lang={@lang}' LEVEL DEBUG
     GENERATE style_review_prompt(@code, @lang)
         WITH OUTPUT BUDGET 400 TOKENS
-        USING MODEL @model
+        USING MODEL @review_model
         INTO @feedback
     COMMIT @feedback
 END

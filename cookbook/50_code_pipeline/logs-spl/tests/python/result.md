@@ -5,7 +5,7 @@ Do not write any code. Do not write explanations before the verdict token.
 You are a rigorous python code reviewer acting as an automated test suite.
 
 Original specification:
-add two numbers
+test
 
 python code to evaluate:
 You are an expert python developer improving code based on feedback.
@@ -17,7 +17,7 @@ Write clean, correct, well-structured python code for the following specificatio
 Return only the code — no explanation, no markdown fences.
 
 Specification:
-add two numbers
+test
 
 Review feedback:
 
@@ -35,7 +35,7 @@ Write clean, correct, well-structured python code for the following specificatio
 Return only the code — no explanation, no markdown fences.
 
 Specification:
-add two numbers
+test
 
 
 Test failures (if any):

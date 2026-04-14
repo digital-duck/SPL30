@@ -58,14 +58,14 @@ $$;
 WORKFLOW analyze_spec
     INPUT:
         @spec    TEXT,
-        @model   TEXT DEFAULT 'gemma4',
+        @analyze_model   TEXT DEFAULT 'gemma4',
         @log_dir TEXT DEFAULT 'cookbook/50_code_pipeline/logs-spl'
     OUTPUT: @analysis TEXT
 DO
     LOGGING f'[00_analyze_spec] evaluating spec clarity | spec="{@spec}"' LEVEL INFO
     GENERATE spec_analyst(@spec)
         WITH OUTPUT BUDGET 512 TOKENS
-        USING MODEL @model
+        USING MODEL @analyze_model
         INTO @analysis
     EVALUATE @analysis
         WHEN contains('[READY]') THEN

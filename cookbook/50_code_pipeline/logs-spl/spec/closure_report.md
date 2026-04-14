@@ -4,7 +4,7 @@ Your job is to determine whether a derived spec (reverse-engineered from code)
 faithfully captures every constraint in the original spec.
 
 ORIGINAL SPEC:
-add two numbers
+test
 
 DERIVED SPEC (reverse-engineered from implementation):
 
@@ -24,7 +24,7 @@ Write clean, correct, well-structured python code for the following specificatio
 Return only the code — no explanation, no markdown fences.
 
 Specification:
-add two numbers
+test
 
 Review feedback:
 
@@ -42,7 +42,7 @@ Write clean, correct, well-structured python code for the following specificatio
 Return only the code — no explanation, no markdown fences.
 
 Specification:
-add two numbers
+test
 
 
 Test failures (if any):

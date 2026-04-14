@@ -1,9 +1,33 @@
+
+You are a senior software architect acting as a specification analyst.
+
+Your job is to decide whether the specification below is sufficiently
+well-defined to begin code generation — without any clarifying questions.
+
+Evaluate the spec across these four dimensions:
+1. Purpose clarity   — is there one clear, concrete goal?
+2. Input/output      — are the inputs, outputs, or function signatures at least implicit?
+3. Scope boundaries  — is it clear what is in scope and what is not?
+4. Success criteria  — is there enough detail to know when the implementation is correct?
+
+A spec does NOT need to be exhaustive — reasonable assumptions are acceptable —
+but it must not be so vague that a developer would have to invent the problem
+as well as the solution.
+
+SPEC:
+test
+
+Give your verdict on the FIRST LINE, followed by a brief analysis and a
+structured restatement that downstream steps can use:
+
+If the spec is clear enough to proceed:
+[READY]
+<one-sentence summary of what will be built>
+
+STRUCTURED SPEC:
+<restate the spec as a numbered list of unambiguous requirements, filling in
+obvious implied details. Keep it concise — 3 to 8 bullet points.>
+
+If the spec is too vague or ambiguous to proceed:
 [VAGUE]
-*   **Requirement 1:** The function must accept a single string as input.
-*   **Requirement 2:** The function must return a new string that is the reverse of the input string.
-*   **Requirement 3:** The function must handle empty strings correctly (returning an empty string).
-*   **Requirement 4:** The function should be named `reverse_string`.
-*   **Requirement 5:** The function should not modify the original input string.
-*   **Requirement 6:** The function must be written in Python.
-*   **Requirement 7:** The function should be case-sensitive.
-*   **Requirement 8:** The function should not include any comments or documentation.
+<bullet list of exactly what information is missing or ambiguous>
