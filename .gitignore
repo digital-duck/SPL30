@@ -218,4 +218,7 @@ go_git.log
 .claude/
 
 docs/*gemini*.md
+docs/*claude*.md
+docs/*opus*.md
+docs/*todo*.md
 

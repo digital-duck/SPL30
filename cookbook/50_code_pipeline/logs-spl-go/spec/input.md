@@ -1,0 +1,1 @@
+write a Python function reverse_string(s: str) -> str that returns the input string with characters in reverse order, handles empty string by returning empty string

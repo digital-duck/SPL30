@@ -75,7 +75,7 @@ WORKFLOW video_summary
         @clip          VIDEO  DEFAULT 'cookbook/53_video_summary/sample/clip.mp4',
         @mode          TEXT   DEFAULT 'summary',
         @style         TEXT   DEFAULT 'concise paragraph',
-        @model         TEXT   DEFAULT 'gemma4',
+        @model         TEXT   DEFAULT 'gemma4:e4b',
         @output_budget INT    DEFAULT 2048,
         @log_dir       TEXT   DEFAULT 'cookbook/53_video_summary/logs-spl'
     OUTPUT: @result TEXT

@@ -1,4 +1,13 @@
 
+You are a rigorous software architect acting as a closure judge.
+Your job is to determine whether a derived spec (reverse-engineered from code)
+faithfully captures every constraint in the original spec.
+
+ORIGINAL SPEC:
+add two numbers
+
+DERIVED SPEC (reverse-engineered from implementation):
+
 You are a software architect reading an implementation and reconstructing its specification.
 
 Study the following code carefully and write a precise, formal specification
@@ -51,3 +60,27 @@ Write the specification in natural language. Cover:
 
 Be precise and complete. Do not describe implementation details (variable names,
 language syntax). Describe *what* the code does, not *how*.
+
+
+Follow these steps exactly:
+
+Step 1 — CONSTRAINT INVENTORY
+List every distinct constraint in the ORIGINAL SPEC as a numbered checklist.
+Include: purpose, inputs, outputs, behavioural rules, edge cases, assumptions.
+Each item must be atomic (one fact per line).
+
+Step 2 — COVERAGE CHECK
+For each constraint from Step 1, quote the exact sentence(s) in DERIVED SPEC
+that cover it. If no sentence covers it, mark the item [MISSING].
+
+Step 3 — ADDITIONS
+List any constraints in DERIVED SPEC that are NOT present in ORIGINAL SPEC.
+Mark each [ADDED]. If none, write "No additions."
+
+Step 4 — VERDICT
+Count the [MISSING] items.
+- Zero [MISSING]: first line must be exactly [CLOSED]
+- One or more [MISSING]: first line must be exactly [DIVERGED]
+
+After the verdict line, write a one-sentence summary.
+Then include the full Step 1 checklist with coverage annotations.
