@@ -18,6 +18,7 @@ class GoTranspiler:
         self.workflow_inputs = {}   # workflow_name → [param_name, ...]  (Issue 4)
         self.indent_level = 0
         self.current_wf_vars = {}
+        self._in_exception_handler = False   # Issue 3: COMMIT → named-return assignment inside defer
 
     def indent(self):
         return "  " * self.indent_level
@@ -222,6 +223,7 @@ class GoTranspiler:
             body_lines.append(f"{self.indent()}if e, ok := r.(splErr); ok {{")
             self.indent_level += 1
             body_lines.append(f"{self.indent()}switch e.SPLType() {{")
+            self._in_exception_handler = True
             for handler in wf.exception_handlers:
                 body_lines.append(f"{self.indent()}case \"{handler.exception_type}\":")
                 self.indent_level += 1
@@ -229,6 +231,7 @@ class GoTranspiler:
                 for sub in handler.statements:
                     body_lines.append(self.transpile_statement(sub))
                 self.indent_level -= 1
+            self._in_exception_handler = False
             body_lines.append(f"{self.indent()}}}")
             self.indent_level -= 1
             body_lines.append(f"{self.indent()}}}")
@@ -257,12 +260,12 @@ class GoTranspiler:
         if isinstance(stmt, LoggingStatement):
             expr = stmt.expression
             if hasattr(expr, 'template'):   # FStringLiteral
-                msg_fmt = re.sub(r'\{@(\w+)\}', '%v', expr.template).replace("\n", "\\n")
+                msg_fmt = re.sub(r'\{@(\w+)\}', '%v', expr.template).replace("\n", "\\n").replace('"', '\\"')
                 vars_match = re.findall(r'\{@(\w+)\}', expr.template)
                 vars_str = ", " + ", ".join(vars_match) if vars_match else ""
                 return f'{ind}{self._spl_comment(stmt)}\n{ind}log.Printf("{msg_fmt}"{vars_str})'
             elif hasattr(expr, 'value'):    # Literal
-                msg_val = str(expr.value).replace("\n", "\\n")
+                msg_val = str(expr.value).replace("\n", "\\n").replace('"', '\\"')
                 return f'{ind}{self._spl_comment(stmt)}\n{ind}log.Printf("{msg_val}")'
             return f'{ind}{self._spl_comment(stmt)}\n{ind}log.Printf("%v", {self.transpile_expression(expr)})'
 
@@ -343,14 +346,22 @@ class GoTranspiler:
 
         if isinstance(stmt, CommitStatement):
             val = self.transpile_expression(stmt.expression)
-            status = "\"complete\""
-            iters = "iteration" if "iteration" in self.current_wf_vars else "0"
+            status_val = "\"complete\""
+            iters_val = "iteration" if "iteration" in self.current_wf_vars else "0"
             if hasattr(stmt, 'options') and stmt.options:
                 if 'status' in stmt.options:
-                    status = self.transpile_expression(stmt.options['status'])
+                    status_val = self.transpile_expression(stmt.options['status'])
                 if 'iterations' in stmt.options:
-                    iters = self.transpile_expression(stmt.options['iterations'])
-            return f"{ind}{self._spl_comment(stmt)}\n{ind}return {val}, {status}, {iters}, nil"
+                    iters_val = self.transpile_expression(stmt.options['iterations'])
+            if self._in_exception_handler:
+                # Inside defer func() — assign to named returns, cannot use return statement
+                return (
+                    f"{ind}{self._spl_comment(stmt)}\n"
+                    f"{ind}result = {val}\n"
+                    f"{ind}status = {status_val}\n"
+                    f"{ind}iterations = {iters_val}"
+                )
+            return f"{ind}{self._spl_comment(stmt)}\n{ind}return {val}, {status_val}, {iters_val}, nil"
 
         # Issue 2: CALL PARALLEL → goroutines + sync.WaitGroup
         if isinstance(stmt, CallParallelStatement):
@@ -465,7 +476,7 @@ class GoTranspiler:
         if isinstance(expr, NamedArg):
             return f"{expr.name}={self._spl_expr(expr.value)}"
         if hasattr(expr, 'template'):
-            return f"f'{expr.template}'"
+            return "f'" + expr.template.replace('\n', '\\n') + "'"
         if isinstance(expr, Condition):
             return f"{self._spl_expr(expr.left)} {expr.operator} {self._spl_expr(expr.right)}"
         if isinstance(expr, UnaryOp):

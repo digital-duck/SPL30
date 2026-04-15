@@ -1,14 +1,14 @@
 {
   "splc_version": "0.1.0",
-  "generated_at": "2026-04-15T22:04:50.446843+00:00",
+  "generated_at": "2026-04-15T22:01:44.941310+00:00",
   "source": {
     "spl_file": "/home/gong-mini/projects/digital-duck/SPL30/cookbook/05_self_refine/self_refine.spl",
     "spl_sha256": "4a79332041fac19a"
   },
   "target": {
-    "lang": "go",
-    "label": "Go (stdlib + Ollama REST API)",
-    "output_file": "/home/gong-mini/projects/digital-duck/SPL30/cookbook/05_self_refine/targets/go/self_refine_go.go"
+    "lang": "ts",
+    "label": "TypeScript (Node 18+ / fetch + Ollama REST API)",
+    "output_file": "/home/gong-mini/projects/digital-duck/SPL30/cookbook/05_self_refine/targets/ts/self_refine_ts.ts"
   },
   "compilation": {
     "model": "claude-sonnet-4-6",

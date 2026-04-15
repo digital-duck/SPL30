@@ -1,6 +1,6 @@
 # SPL Future Work — Design Ideas
 
-*Captured: 2026-03-30. Last updated: 2026-04-13 (session 2).*
+*Captured: 2026-03-30. Last updated: 2026-04-15 (session 5).*
 
 **Implementation progress:** see [FEATURES.md](FEATURES.md) for what is currently implemented and tested.
 - ROADMAP.md tracks *design intent*;
@@ -43,6 +43,48 @@ Python is always first. Go follows when a feature is proven. TypeScript follows 
 - Progressive Web Apps running local LLM workflows via WebLLM/WASM
 
 This is the moment SPL stops being a CLI tool and becomes a platform.
+
+---
+
+## splc — Compiler Milestones and Next Steps
+
+*Updated: 2026-04-15 (session 5).*
+
+### What shipped (session 5)
+
+| Item | Detail |
+|------|--------|
+| Go transpiler — 10 issues fixed | `// SPL:` traceability, CALL PARALLEL (goroutines+WaitGroup), EXCEPTION (defer/recover), named-arg resolution, backtick escaping, HTTP error body, writeFile errors, `"sync"` conditional import, int type inference, correct `--ollama-host` flag |
+| TypeScript transpiler — new | `transpiler_ts.py`: CALL PARALLEL → `Promise.all()`, EXCEPTION → try/catch+SPLError, all 3 recipes pass `tsc --strict` and run live via `tsx` |
+| Default behavior flipped | Deterministic is now default for `go`, `ts`, `python/langgraph`; `--llm` opts into LLM compilation |
+| CLI simplified | SPL path is positional: `splc x.spl --lang go` (no `--spl` prefix) |
+| LangGraph transpiler plan | Design documented in `docs/plan-for-splc-python-by-claude.md`; Opus implementing in parallel session |
+
+### Gaming PC validation milestone (next)
+
+The mini-PC (current dev machine) is too slow for full LLM runs against splc output.
+The gaming PC is the validation target for:
+
+| Test | Command | What it proves |
+|------|---------|----------------|
+| Go — self_refine live | `go run self_refine_go.go --writer-model gemma3 --task "..."` | NDD closure: splc Go output ≡ `spl3 run` |
+| Go — parallel_news_digest live | `go run parallel_news_digest_go.go --digest-model gemma3` | CALL PARALLEL goroutines work end-to-end |
+| TS — self_refine live | `npx tsx self_refine_ts.ts --writer-model gemma3 --task "..."` | NDD closure: splc TS output ≡ `spl3 run` |
+| TS — parallel_news_digest live | `npx tsx parallel_news_digest_ts.ts --digest-model gemma3` | Promise.all parallel branches work |
+| LangGraph live | `python self_refine_python_langgraph.py --task "..."` | NDD closure: LangGraph output ≡ `spl3 run` |
+
+All five tests use the same `--task "What are the benefits of meditation?"` so logs can be
+`diff`-compared for structural equivalence (iteration count, approval token, `final.md` presence).
+
+### Next splc features after gaming PC validation
+
+| Feature | Priority | Notes |
+|---------|----------|-------|
+| `splc judge` command | High | Automate NDD closure check: run echo oracle, run compiled artifact, compare structure |
+| Python/crewai deterministic transpiler | Medium | Follow same pattern as LangGraph transpiler |
+| `go.mod` generation alongside `.go` output | Medium | Currently missing; needed for `go mod tidy` |
+| `package.json` / `tsconfig.json` alongside `.ts` output | Medium | Makes the TS target self-contained |
+| Type inference beyond `iteration` (Go) | Low | Done in session 5; verify with recipe 50 counter vars |
 
 ---
 

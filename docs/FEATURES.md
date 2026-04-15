@@ -1,6 +1,6 @@
 # SPL — Implemented Features
 
-*Last updated: 2026-04-14 (session 4).*
+*Last updated: 2026-04-15 (session 5).*
 *SPL30 is the canonical source of truth for SPL language design and runtime features.*
 
 Status legend:
@@ -266,14 +266,45 @@ One Momagrid deployment model targeting K-12 and university education worldwide.
 
 ## splc Compiler
 
-| Target | Status | Notes |
-|--------|--------|-------|
-| `splc --target go` | `[DONE]` | Both Deterministic Transpiler and LLM-based paths implemented |
-| `splc --target ts` | `[TODO]` | SPL.ts is the hand-crafted reference target |
-| `splc --target python/langgraph` | `[PARTIAL]` | `self_refine_langgraph.py` hand-crafted |
-| `splc --target snap` | `[TODO]` | Ubuntu 26.04 |
-| `splc --target swift` | `[TODO]` | Apple M4/M5 |
-| NDD closure test (compiler correctness) | `[DONE]` | Manual validation of `self_refine.go` against `spl3 run` |
+CLI: `splc <file.spl> --lang <target>` (SPL path is positional; no `--spl` flag needed).
+Default path is **deterministic** for supported targets; `--llm` opts into LLM compilation.
+
+### Deterministic transpilers (no LLM, instant, reproducible)
+
+| Target (`--lang`) | Status | Transpiler | Test status |
+|-------------------|--------|------------|-------------|
+| `go` | `[DONE]` | `transpiler_go.py` — Gemini impl, Claude fixed 10 issues (session 5) | Both recipes compile + `go build` clean |
+| `ts` | `[DONE]` | `transpiler_ts.py` — Claude impl (session 5) | `tsc --strict` exit 0; `tsx` runs live |
+| `python/langgraph` | `[PARTIAL]` | `transpiler_langgraph.py` — plan by Claude, impl by Opus (in progress) | Pending gaming PC validation |
+
+### LLM compilation (`--llm` flag required for deterministic targets, default for others)
+
+| Target (`--lang`) | Status | Notes |
+|-------------------|--------|-------|
+| `go` | `[DONE]` | `--llm` flag overrides deterministic default |
+| `ts` | `[DONE]` | `--llm` flag overrides deterministic default |
+| `python/langgraph` | `[DONE]` | `--llm` flag overrides deterministic default |
+| `python/crewai` | `[DONE]` | LLM-only (no deterministic transpiler) |
+| `python/autogen` | `[DONE]` | LLM-only |
+| `python/liquid` | `[DONE]` | LLM-only |
+| `snap` | `[TODO]` | Ubuntu 26.04 |
+| `swift` | `[TODO]` | Apple M4/M5 |
+
+### Compiler correctness
+
+| Feature | Status |
+|---------|--------|
+| `// SPL:` traceability comments on every translated block | `[DONE]` — Go + TS |
+| Named-arg resolution (`digest_model=@digest_model`) | `[DONE]` — Go + TS |
+| `CALL PARALLEL` → goroutines + WaitGroup (Go) | `[DONE]` |
+| `CALL PARALLEL` → `Promise.all()` (TS) | `[DONE]` |
+| `EXCEPTION` handlers → defer/recover (Go) | `[DONE]` |
+| `EXCEPTION` handlers → try/catch with SPLError (TS) | `[DONE]` |
+| `"sync"` import added only when CALL PARALLEL present (Go) | `[DONE]` |
+| `splc_manifest.json` provenance record | `[DONE]` |
+| Overwrite guard (`--overwrite` flag) | `[DONE]` |
+| `targets-ref/` hand-crafted references (go, python/langgraph, python/crewai, python/autogen) | `[DONE]` |
+| NDD closure validation (`splc judge` command) | `[TODO]` — gaming PC milestone |
 
 ---
 
