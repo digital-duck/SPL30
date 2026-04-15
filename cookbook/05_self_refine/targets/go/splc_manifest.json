@@ -1,0 +1,21 @@
+{
+  "splc_version": "0.1.0",
+  "generated_at": "2026-04-15T09:44:04.025359+00:00",
+  "source": {
+    "spl_file": "/home/gong-mini/projects/digital-duck/SPL30/cookbook/05_self_refine/self_refine.spl",
+    "spl_sha256": "4a79332041fac19a"
+  },
+  "target": {
+    "lang": "go",
+    "label": "Go (stdlib + Ollama REST API)",
+    "output_file": "/home/gong-mini/projects/digital-duck/SPL30/cookbook/05_self_refine/targets/go/self_refine_go.go"
+  },
+  "compilation": {
+    "model": "claude-sonnet-4-6",
+    "adapter": "claude_cli",
+    "references": [],
+    "rag_enabled": true,
+    "rag_k": 3
+  },
+  "doda_note": "This file is a splc-compiled physical artifact. The source .spl file is the invariant logical view. To retarget, run: splc --spl <source.spl> --lang <new-target>"
+}

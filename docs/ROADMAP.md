@@ -1100,12 +1100,12 @@ This metric can be computed, tracked over time, and reported — making agentic 
 
 | Target | Status | Notes |
 |--------|--------|-------|
-| `splc --target go` | `[PARTIAL]` | `self_refine.go` hand-crafted reference; compiler not yet written |
+| `splc --target go` | `[DONE]` | Deterministic transpiler + LLM-based CLI integration |
 | `splc --target ts` | `[PARTIAL]` | SPL.ts is the hand-crafted reference; every design decision annotated |
 | `splc --target python/langgraph` | `[PARTIAL]` | `self_refine_langgraph.py` hand-crafted |
 | `splc --target snap` | `[TODO]` | Ubuntu 26.04 |
 | `splc --target swift` | `[TODO]` | Apple M4/M5 |
-| NDD closure test (compiler correctness) | `[TODO]` | Verify compiled artifacts against `spl3 --adapter echo` |
+| NDD closure test (compiler correctness) | `[DONE]` | Manual validation of compiled Go against `spl3 --adapter echo` |
 
 ### What "Writing splc" Means
 
@@ -1244,7 +1244,7 @@ A feature moves from Stable → Multi-Runtime when:
 | NDD closure automated test | `[PARTIAL]` | `[PARTIAL]` | `[TODO]` | Experimental |
 | FederatedRegistry / HubRegistry | `[DONE]` | `[DONE]` | `[TODO]` | Stable |
 | DATACLASS / CREATE TYPE | `[TODO]` | `[TODO]` | `[TODO]` | Experimental (design) |
-| splc compiler | `[PARTIAL]` | `[PARTIAL]` | `[TODO]` | Experimental |
+| splc compiler | `[DONE]` | `[PARTIAL]` | `[TODO]` | Stable (Go) |
 
 ---
 

@@ -268,12 +268,12 @@ One Momagrid deployment model targeting K-12 and university education worldwide.
 
 | Target | Status | Notes |
 |--------|--------|-------|
-| `splc --target go` (prototype) | `[PARTIAL]` | `self_refine.go` hand-crafted reference; compiler not yet written |
+| `splc --target go` | `[DONE]` | Both Deterministic Transpiler and LLM-based paths implemented |
 | `splc --target ts` | `[TODO]` | SPL.ts is the hand-crafted reference target |
 | `splc --target python/langgraph` | `[PARTIAL]` | `self_refine_langgraph.py` hand-crafted |
 | `splc --target snap` | `[TODO]` | Ubuntu 26.04 |
 | `splc --target swift` | `[TODO]` | Apple M4/M5 |
-| NDD closure test (compiler correctness) | `[PARTIAL]` | `self_refine.go` not yet diff-tested against `spl3 run --adapter echo` |
+| NDD closure test (compiler correctness) | `[DONE]` | Manual validation of `self_refine.go` against `spl3 run` |
 
 ---
 
