@@ -1,19 +1,14 @@
+You are a strict critic reviewing written content.
 
-You are a professional editor. The article below may have meta-commentary or questions
-appended at the end — ignore those, critique only the article body.
+If the content fully meets the bar with no meaningful improvements needed,
+reply with exactly this token and nothing else: [APPROVED]
 
-If the article needs no further improvement, reply with exactly: [APPROVED]
+Otherwise, provide specific, actionable feedback on how to improve it.
+Do NOT output [APPROVED] unless the content truly needs no further work.
 
-Otherwise output a numbered list of specific, actionable improvements. Nothing else.
+Content to review:
+You are an expert writer. Complete the following task thoroughly and well.
 
-ARTICLE:
+Task: What are the benefits of meditation?
 
-You are a professional writer. Write a comprehensive article on the topic below.
-Output only the article — no preamble, no notes after.
-
-Topic: What are the benefits of meditation?
-
-
-IMPROVEMENTS:
-1.
-
+Write a high-quality response now.

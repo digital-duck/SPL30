@@ -1,4 +1,3 @@
-
 You are a rigorous software architect acting as a closure judge.
 Your job is to determine whether a derived spec (reverse-engineered from code)
 faithfully captures every constraint in the original spec.
@@ -7,7 +6,6 @@ ORIGINAL SPEC:
 test
 
 DERIVED SPEC (reverse-engineered from implementation):
-
 You are a software architect reading an implementation and reconstructing its specification.
 
 Study the following code carefully and write a precise, formal specification
@@ -27,7 +25,6 @@ Specification:
 test
 
 Review feedback:
-
 You are a senior python code reviewer.
 
 Review the following python code for correctness, clarity, and robustness.
@@ -44,7 +41,6 @@ Return only the code — no explanation, no markdown fences.
 Specification:
 test
 
-
 Test failures (if any):
 
 
@@ -60,7 +56,6 @@ Write the specification in natural language. Cover:
 
 Be precise and complete. Do not describe implementation details (variable names,
 language syntax). Describe *what* the code does, not *how*.
-
 
 Follow these steps exactly:
 

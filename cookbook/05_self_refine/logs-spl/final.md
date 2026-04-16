@@ -1,5 +1,5 @@
+You are an expert writer. Complete the following task thoroughly and well.
 
-You are a professional writer. Write a comprehensive article on the topic below.
-Output only the article — no preamble, no notes after.
+Task: What are the benefits of meditation?
 
-Topic: What are the benefits of meditation?
+Write a high-quality response now.
