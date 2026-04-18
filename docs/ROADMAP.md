@@ -1,6 +1,6 @@
 # SPL Future Work — Design Ideas
 
-*Captured: 2026-03-30. Last updated: 2026-04-15 (session 5).*
+*Captured: 2026-03-30. Last updated: 2026-04-18 (session 7).*
 
 **Implementation progress:** see [FEATURES.md](FEATURES.md) for what is currently implemented and tested.
 - ROADMAP.md tracks *design intent*;
@@ -1275,18 +1275,27 @@ A feature moves from Stable → Multi-Runtime when:
 - **Don't let Go/TypeScript fall behind indefinitely.** Once a feature has been stable in Python for two or more cookbook recipes, it is ready to port.
 - **NDD closure is the promotion gate.** No feature graduates to Multi-Runtime without a passing NDD closure test in all runtimes.
 
-### Current Tier Status (2026-04-13)
+### Current Tier Status (updated 2026-04-18)
 
 | Feature | Python | Go | TypeScript | Tier |
 |---------|--------|----|------------|------|
 | SPL 1.0 prompt/query constructs | `[DONE]` | `[DONE]` | `[DONE]` | Multi-Runtime |
 | SPL 2.0 workflow/procedural | `[DONE]` | `[DONE]` | `[DONE]` | Multi-Runtime |
 | SPL 3.0 IMPORT, CALL PARALLEL | `[DONE]` | `[DONE]` | `[DONE]` | Multi-Runtime |
+| **Cross-runtime run log parity** (`~/.spl/logs/`) | `[DONE]` | `[DONE]` | `[DONE]` | **Multi-Runtime ✓ 2026-04-18** |
+| **Recipe 1 + 2 verified on all runtimes** | `[DONE]` | `[DONE]` | `[DONE]` | **Multi-Runtime ✓ 2026-04-18** |
+| `spl3` SPL 2.0 PROMPT fallback | `[DONE]` | — | — | Stable |
 | Multi-modal (IMAGE/AUDIO/VIDEO) | `[DONE]` | `[PARTIAL]` | `[TODO]` | Stable |
 | NDD closure automated test | `[PARTIAL]` | `[PARTIAL]` | `[TODO]` | Experimental |
 | FederatedRegistry / HubRegistry | `[DONE]` | `[DONE]` | `[TODO]` | Stable |
 | DATACLASS / CREATE TYPE | `[TODO]` | `[TODO]` | `[TODO]` | Experimental (design) |
-| splc compiler | `[DONE]` | `[PARTIAL]` | `[TODO]` | Stable (Go) |
+| **splc `--lang go`** (deterministic) | `[DONE]` | — | — | **Stable ✓ 2026-04-18** |
+| **splc `--lang ts`** (deterministic) | `[DONE]` | — | — | **Stable ✓ 2026-04-18** |
+| **splc `--lang python/langgraph`** (deterministic) | `[DONE]` | — | — | **Stable ✓ 2026-04-18** |
+| splc `--lang python/crewai` (LLM) | `[DONE]` | — | — | Stable |
+| splc `--lang python/autogen` (LLM) | `[DONE]` | — | — | Stable |
+| splc NDD closure validation (`splc judge`) | `[TODO]` | — | — | Experimental |
+| **Web-UI frontend** (`spl-ui`) | `[TODO]` | — | — | Planned (see below) |
 
 ---
 
@@ -1679,6 +1688,91 @@ SPL is the language of this network. Momagrid is the operating system. The AI qu
 | Public Hub discovery / DNS | `[TODO]` | Find peer Hubs by name, not just IP |
 | `spl-ts` Hub adapter | `[TODO]` | Browser workflows dispatching to Momagrid |
 | Node auto-registration script | `[TODO]` | `curl install.momagrid.sh | bash` for new nodes |
+
+---
+
+## Web-UI Frontend for SPL v3.0 Launch
+
+*Added: 2026-04-18 (session 7). SPL.ts makes this achievable without a Python backend.*
+
+### Vision
+
+The Streamlit UI (`spl3 ui`) is a Python-only development tool — it requires the server-side
+Python runtime, can't be deployed as a static site, and is not mobile-friendly.
+For the SPL v3.0 public launch, the Web-UI must be a first-class product:
+
+- Shareable via a URL (GitHub Pages or static hosting — zero server cost)
+- Mobile-friendly and installable as a PWA
+- No installation required to try SPL for the first time
+- Connected to Ollama for users with local inference, or cloud adapters as fallback
+
+**SPL.ts is the enabler.** The browser-safe core (zero Node.js APIs) means
+the same runtime that powers `spl-ts` CLI powers the Web-UI in the browser.
+
+### Architecture
+
+```
+Browser Tab
+├── Monaco Editor              — SPL source (.spl) with syntax highlighting
+├── SPL.ts Runtime (ESM)       — lexer / parser / executor (already browser-safe)
+│     ├── EchoAdapter          — instant deterministic feedback, no LLM needed
+│     ├── OllamaAdapter        — local Ollama (OLLAMA_ORIGINS=* required)
+│     └── OpenAI-compat        — OpenAI / Groq / Together / Mistral with API key
+├── Cookbook Browser           — browse + fork recipes from cookbook_catalog_ts.json
+└── Output Panel               — live run output, log viewer, token/latency stats
+```
+
+Static hosting (GitHub Pages, Netlify, Vercel) — no backend server required.
+Momagrid Hub integration via `HubRegistry` (future) — dispatch from browser to LAN grid.
+
+### Milestones
+
+| Milestone | Description | Depends on | Status |
+|-----------|-------------|------------|--------|
+| `spl-ts` ESM bundle | `npm run build` → `dist/spl-ts.esm.js` (browser entry point) | SPL.ts complete | `[TODO]` |
+| Monaco SPL syntax | `.tmLanguage` grammar for SPL keywords + token highlighting | — | `[TODO]` |
+| React/Vue/Svelte shell | Single-page app: editor + output + adapter selector | ESM bundle | `[TODO]` |
+| Cookbook browser panel | Load `cookbook_catalog_ts.json`, browse + click-to-load recipe | SPL.ts catalog | `[TODO]` |
+| EchoAdapter live output | Run SPL with echo — instant, no LLM, zero config | Shell complete | `[TODO]` |
+| Ollama integration | `OLLAMA_ORIGINS=*` guide + OllamaAdapter in browser | Shell complete | `[TODO]` |
+| API key adapter | OpenAI-compat adapter with in-browser key storage (localStorage) | Shell complete | `[TODO]` |
+| GitHub Pages deploy | `gh-pages` branch auto-deploy via GitHub Actions | Shell + bundle | `[TODO]` |
+| PWA manifest + service worker | Installable on desktop and mobile | Deploy | `[TODO]` |
+| Momagrid dispatch | `HubRegistry` in SPL.ts → submit workflow to LAN Hub from browser | HubRegistry | `[TODO]` |
+
+### Front-End Technology Choice
+
+| Option | Pros | Cons | Recommendation |
+|--------|------|------|----------------|
+| **React + Vite** | Largest ecosystem; Monaco integration well documented | Bundle size; JSX toolchain | **Recommended** — fastest to working prototype |
+| Svelte | Smaller bundle; less boilerplate | Smaller community; Monaco integration less mature | Good alternative if bundle size matters |
+| Vanilla JS + Web Components | Zero framework dependency | More code; harder to maintain | Only if framework is a hard constraint |
+
+Recommendation: **React + Vite** for the initial launch. The SPL.ts runtime is framework-agnostic —
+switching the shell later is possible without touching the runtime.
+
+### Priority for Launch
+
+The minimum viable Web-UI for SPL v3.0 launch:
+1. Monaco editor with SPL highlighting
+2. EchoAdapter run (no LLM) — proves the runtime works in browser
+3. Cookbook recipe browser — browse + load any recipe
+4. OllamaAdapter — for users with local Ollama
+5. GitHub Pages deploy
+
+Items 1–5 can be built on top of the existing SPL.ts ESM export with ~500 lines of React.
+The LLM adapters, Momagrid integration, and PWA features are follow-on.
+
+### Repo Strategy
+
+| Option | Approach |
+|--------|----------|
+| New repo `SPL.ui` | Clean separation; own npm package; deploys independently |
+| Add `web/` to `SPL.ts` repo | Easier to share types; single repo; simpler CI |
+
+Recommendation: **`web/` directory inside `SPL.ts` repo** for the initial launch.
+The `spl-ts` CLI and the `web/` frontend share the same compiled ESM bundle — no duplication.
+Promote to its own repo if the Web-UI grows into a distinct product.
 
 ---
 

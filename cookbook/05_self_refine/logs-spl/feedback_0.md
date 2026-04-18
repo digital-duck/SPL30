@@ -1,14 +1,5 @@
-You are a strict critic reviewing written content.
-
-If the content fully meets the bar with no meaningful improvements needed,
-reply with exactly this token and nothing else: [APPROVED]
-
-Otherwise, provide specific, actionable feedback on how to improve it.
-Do NOT output [APPROVED] unless the content truly needs no further work.
-
-Content to review:
-You are an expert writer. Complete the following task thoroughly and well.
-
-Task: What are the benefits of meditation?
-
-Write a high-quality response now.
+1.  Replace “phantom’s plea” with a more concrete and less metaphorical description of what a persistent hum represents in the context of SPL. Consider something like “Subtle vibration’s trace” or “Machine’s quiet strain.” The current phrasing feels somewhat forced.
+2.  Clarify the connection between “subpulses” and “shadowed sea.” The metaphor is intriguing, but could benefit from a slightly stronger link to the measurement process. Perhaps something like, “Subpulses ripple, unseen waves.”
+3.  Rephrase “Silence swallows sound” to avoid the slightly cliché “swallows” imagery. Alternatives could be “Silence claims the sound” or “Silence holds the sound.”
+4.  Tighten the language throughout. Several sentences are slightly verbose. For example, “It’s a deliberately ambiguous image – the sea can be calm and serene, but also turbulent and powerful.” could be condensed to “The ‘shadowed sea’ evokes both tranquility and potential disturbance.”
+5.  Consider adding a brief sentence explaining *why* precise SPL measurement is important beyond just “ensuring a comfortable listening experience” and “protecting our hearing health.” (e.g., “Accurate SPL readings are vital for noise pollution monitoring and industrial safety.”)

@@ -1,6 +1,6 @@
 # SPL — Implemented Features
 
-*Last updated: 2026-04-15 (session 5).*
+*Last updated: 2026-04-18 (session 6).*
 *SPL30 is the canonical source of truth for SPL language design and runtime features.*
 
 Status legend:
@@ -184,13 +184,39 @@ against SPL30 via **NDD closure** (`spl3 run --adapter echo` as oracle, `diff` a
 
 | Runtime | CLI | Browser | Node.js | Status |
 |---------|-----|---------|---------|--------|
-| Python (SPL30) | `spl3` | No | No | `[DONE]` |
+| Python SPL 2.0 (`spl`) | `spl` | No | No | `[DONE]` |
+| Python SPL 3.0 (`spl3`) | `spl3` | No | No | `[DONE]` |
 | Go (SPL.go) | `spl-go` | No | No | `[DONE]` |
 | TypeScript (SPL.ts) | `spl-ts` | Yes | Yes | `[DONE]` |
 
 SPL.ts architecture constraint: core (lexer/parser/executor/stdlib) uses zero
 Node.js-specific APIs — only Web APIs (`fetch`, `console`, `Map`, `Promise`).
 `node:fs` is isolated to `cli.ts` only.
+
+### Cross-Runtime CLI Parity (achieved 2026-04-18)
+
+| Feature | `spl` | `spl3` | `spl-go` | `spl-ts` |
+|---------|-------|--------|----------|---------|
+| Run log written to `~/.spl/logs/` | `[DONE]` | `[DONE]` | `[DONE]` | `[DONE]` |
+| Log format: SPL Source + Final Prompt + Output | `[DONE]` | `[DONE]` | `[DONE]` | `[DONE]` |
+| Log suffix identifies runtime (`-go.md`, `-ts.md`) | n/a | n/a | `[DONE]` | `[DONE]` |
+| `spl3` falls back to SPL 2.0 PROMPT execution | — | `[DONE]` | — | — |
+| Recipe 1 (`hello_world`) verified | `[DONE]` | `[DONE]` | `[DONE]` | `[DONE]` |
+| Recipe 2 (`ollama_proxy`) verified | `[DONE]` | `[DONE]` | `[DONE]` | `[DONE]` |
+
+### Recipe 2 Cross-Runtime Latency Benchmark (2026-04-18, gemma3, `What is 7*8?`)
+
+| Runtime | CLI | Latency | Tokens in | Notes |
+|---------|-----|---------|-----------|-------|
+| `spl-go` | `spl-go` | **1588 ms** 🥇 | 44 | Actual tokenizer |
+| `spl3` | `spl3` | 2189 ms 🥈 | 52 | Actual tokenizer; slightly wider prompt assembly |
+| `spl` | `spl` | 3017 ms 🥉 | 44 | Actual tokenizer |
+| `spl-ts` | `spl-ts` | 4003 ms | 15 ⚠ | `Math.ceil(len/4)` heuristic — cosmetic only |
+
+**Token count note:** `spl-ts` uses a character-count heuristic (`Math.ceil(prompt.length / 4)`) in
+`executor.ts` instead of an actual tokenizer. This is cosmetic — it affects only the logged token
+count, not correctness or NDD closure. The 52 vs 44 difference between `spl3` and `spl`/`spl-go`
+is under investigation (likely prompt-assembly differences in the SPL 2.0 fallback path).
 
 ---
 

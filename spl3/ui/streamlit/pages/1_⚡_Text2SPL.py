@@ -264,7 +264,7 @@ with left:
                 "--no-validate",
                 "-o", str(spl_file),
                 "--adapter", c_adapter,
-                "-m", c_model,
+                "--model", c_model,
             ]
             if not use_code_rag:
                 cmd.append("--no-code-rag")
@@ -401,7 +401,7 @@ if st.session_state.spl_code:
         return result
 
     if btn_run:
-        run_cmd = ["spl", "run", st.session_state.spl_file, "--adapter", r_adapter, "-m", r_model]
+        run_cmd = ["spl", "run", st.session_state.spl_file, "--adapter", r_adapter, "--model", r_model]
 
         raw_assignments = st.session_state.get("param_assignments", "") or ""
         effective_params = _parse_assignments(raw_assignments)

@@ -10,10 +10,86 @@ Commands:
 
 import asyncio
 import logging
+from datetime import datetime
+from pathlib import Path
 
 import click
 
 _log = logging.getLogger("spl.cli")
+
+_SPL_LOG_DIR = Path.home() / ".spl" / "logs"
+
+
+# ---------------------------------------------------------------------------
+# Run-log helpers (parity with spl-go / spl-ts)
+# ---------------------------------------------------------------------------
+
+class _CapturingAdapter:
+    """Thin wrapper that records the last prompt/model sent to the LLM."""
+    def __init__(self, inner):
+        self._inner = inner
+        self.last_prompt = ""
+        self.last_model = ""
+
+    def __getattr__(self, name):
+        return getattr(self._inner, name)
+
+    async def generate(self, prompt: str = "", model: str = "", **kwargs):
+        self.last_prompt = prompt
+        self.last_model = model or getattr(self._inner, "default_model", "")
+        return await self._inner.generate(prompt, model=model, **kwargs)
+
+
+def _write_run_log(
+    stem: str,
+    adapter_name: str,
+    model_name: str,
+    source: str,
+    last_prompt: str,
+    result,
+    started_at: datetime,
+) -> Path:
+    """Write a rich markdown run log matching spl-go / spl-ts format. Returns the log path."""
+    _SPL_LOG_DIR.mkdir(parents=True, exist_ok=True)
+    ts_file  = started_at.strftime("%Y%m%d-%H%M%S")
+    ts_human = started_at.strftime("%Y-%m-%d %H:%M:%S")
+
+    filename = f"{stem}-{adapter_name}-{ts_file}.md"
+    log_path = _SPL_LOG_DIR / filename
+
+    # Support both WorkflowResult (spl3) and SPLResult / GenerationResult (spl2)
+    in_tok  = (getattr(result, "total_input_tokens",  None)
+               or getattr(result, "input_tokens",  0) or 0)
+    out_tok = (getattr(result, "total_output_tokens", None)
+               or getattr(result, "output_tokens", 0) or 0)
+    latency = (getattr(result, "total_latency_ms",    None)
+               or getattr(result, "latency_ms",    0) or 0)
+    output  = (getattr(result, "committed_value", None)
+               or getattr(result, "content", "") or "")
+
+    lines = [
+        f"# SPL Run: {stem}",
+        "",
+        f"- **Adapter:** {adapter_name}",
+        f"- **Model:** {model_name}",
+        f"- **Tokens:** {in_tok} in / {out_tok} out",
+        f"- **Latency:** {latency:.0f}ms",
+        f"- **Timestamp:** {ts_human}",
+        "",
+        "## SPL Source",
+        "",
+        "```spl",
+        source.rstrip(),
+        "```",
+    ]
+
+    if last_prompt:
+        lines += ["", "## Final Prompt", "", "```prompt", last_prompt.rstrip(), "```"]
+
+    lines += ["", "## Output", "", "```output", output.rstrip(), "```"]
+
+    log_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return log_path
 
 
 @click.group()
@@ -34,7 +110,7 @@ def main(ctx, hub, verbose):
 @main.command()
 @click.argument("spl_file")
 @click.option("--adapter", default="ollama", show_default=True)
-@click.option("--model", "-m", default=None, show_default=True)
+@click.option("--model", default=None, show_default=True)
 @click.option("--param", "-p", multiple=True, help="key=value workflow INPUT params")
 @click.option(
     "--log-prompts", default=None, metavar="DIR",
@@ -79,6 +155,8 @@ async def _run_workflow(path, adapter_name, model, params, hub_url, log_prompts=
     except ImportError:
         raise click.ClickException("spl-llm 2.0 not installed: pip install spl-llm>=2.0.0")
 
+    started_at = datetime.now()
+
     # Build registry: load all .spl files in the same directory
     local = LocalRegistry()
     local.load_dir(path.parent)
@@ -95,42 +173,82 @@ async def _run_workflow(path, adapter_name, model, params, hub_url, log_prompts=
 
     # Build executor and attach composer for CALL workflow_name() dispatch
     adapter_kwargs = {"model": model} if model else {}
-    adapter = get_adapter(adapter_name, **adapter_kwargs)
-    executor = Executor(adapter=adapter)
+    _inner_adapter = get_adapter(adapter_name, **adapter_kwargs)
+    capturing = _CapturingAdapter(_inner_adapter)
+    executor = Executor(adapter=capturing)
     executor.composer = WorkflowComposer(registry, executor)
     if log_prompts:
         executor.prompt_log_dir = log_prompts
         click.echo(f"Prompt logging → {log_prompts}/")
 
-    # Find the top-level workflow in the file (last defined, or named 'main')
+    # Parse the file — needed for function registration and PROMPT fallback
+    from spl.lexer import Lexer
+    from spl.ast_nodes import CreateFunctionStatement, PromptStatement
+    from spl3.parser import SPL3Parser
     from spl3._loader import load_workflows_from_file
-    defns = load_workflows_from_file(path)
-    if not defns:
-        raise click.ClickException(f"No WORKFLOW definitions found in {path}")
+
+    source = path.read_text(encoding="utf-8")
+    _tokens = Lexer(source).tokenize()
+    _program = SPL3Parser(_tokens).parse()
 
     # Register CREATE FUNCTION definitions so prompt templates are expanded
-    # (execute_workflow is called directly, bypassing executor.run() which
-    # normally does this registration)
-    from spl.lexer import Lexer
-    from spl.ast_nodes import CreateFunctionStatement
-    from spl3.parser import SPL3Parser
-    _tokens = Lexer(path.read_text(encoding="utf-8")).tokenize()
-    _program = SPL3Parser(_tokens).parse()
     for _stmt in _program.statements:
         if isinstance(_stmt, CreateFunctionStatement):
             executor.functions.register(_stmt)
 
-    # Prefer a workflow named after the file stem, or take the last one
     stem = path.stem.replace("-", "_")
-    target = next((d for d in defns if d.name == stem), defns[-1])
-    click.echo(f"Running workflow: {target.name}({list(params)})")
+    defns = load_workflows_from_file(path)
 
-    result = await executor.execute_workflow(target.ast_node, params=params)
+    if defns:
+        # ── SPL 3.0 WORKFLOW path ──────────────────────────────────────────
+        target = next((d for d in defns if d.name == stem), defns[-1])
+        click.echo(f"Running workflow: {target.name}({list(params)})")
 
-    click.echo(f"\nStatus:  {result.status}")
-    click.echo(f"Output:  {result.committed_value or '(no COMMIT)'}")
-    click.echo(f"LLM calls: {result.total_llm_calls}  "
-               f"Latency: {result.total_latency_ms:.0f}ms")
+        result = await executor.execute_workflow(target.ast_node, params=params)
+
+        resolved_model = capturing.last_model or model or ""
+        click.echo(f"\nStatus:  {result.status}")
+        click.echo(f"Output:  {result.committed_value or '(no COMMIT)'}")
+        click.echo(f"LLM calls: {result.total_llm_calls}  "
+                   f"Latency: {result.total_latency_ms:.0f}ms")
+        log_result = result
+
+    else:
+        # ── SPL 2.0 PROMPT fallback ────────────────────────────────────────
+        prompts = [s for s in _program.statements if isinstance(s, PromptStatement)]
+        if not prompts:
+            raise click.ClickException(
+                f"No WORKFLOW or PROMPT definitions found in {path}"
+            )
+
+        from spl.analyzer import Analyzer
+        analysis = Analyzer().analyze(_program)
+        spl2_results = await executor.execute_program(analysis, params=params)
+
+        for r in spl2_results:
+            click.echo(f"\nStatus:     complete")
+            click.echo(f"Output:     {getattr(r, 'content', '') or '(no output)'}")
+            click.echo(f"LLM calls:  1")
+            click.echo(f"Latency:    {getattr(r, 'latency_ms', 0):.0f}ms")
+            toks_in  = getattr(r, "input_tokens",  0)
+            toks_out = getattr(r, "output_tokens", 0)
+            if toks_in:
+                click.echo(f"Tokens:     {toks_in} in / {toks_out} out")
+
+        resolved_model = capturing.last_model or model or getattr(spl2_results[0], "model", "") if spl2_results else model or ""
+        log_result = spl2_results[-1] if spl2_results else None
+
+    if log_result is not None:
+        log_path = _write_run_log(
+            stem=stem,
+            adapter_name=adapter_name,
+            model_name=resolved_model,
+            source=source,
+            last_prompt=capturing.last_prompt,
+            result=log_result,
+            started_at=started_at,
+        )
+        click.echo(f"Log:     {log_path}")
 
 
 # ------------------------------------------------------------------ #
@@ -251,7 +369,7 @@ def peers_add(ctx, peer_url):
 @main.command("test")
 @click.argument("spl_file_or_dir")
 @click.option("--adapter", default="ollama", show_default=True)
-@click.option("--model", "-m", default=None, show_default=True)
+@click.option("--model", default=None, show_default=True)
 @click.option("--verbose", "-v", is_flag=True)
 @click.pass_context
 def cmd_test(ctx, spl_file_or_dir, adapter, model, verbose):
