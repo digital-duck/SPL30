@@ -1,6 +1,6 @@
 # SPL Future Work — Design Ideas
 
-*Captured: 2026-03-30. Last updated: 2026-04-18 (session 7).*
+*Captured: 2026-03-30. Last updated: 2026-04-18 (session 8).*
 
 **Implementation progress:** see [FEATURES.md](FEATURES.md) for what is currently implemented and tested.
 - ROADMAP.md tracks *design intent*;
@@ -1295,7 +1295,7 @@ A feature moves from Stable → Multi-Runtime when:
 | splc `--lang python/crewai` (LLM) | `[DONE]` | — | — | Stable |
 | splc `--lang python/autogen` (LLM) | `[DONE]` | — | — | Stable |
 | splc NDD closure validation (`splc judge`) | `[TODO]` | — | — | Experimental |
-| **Web-UI frontend** (`spl-ui`) | `[TODO]` | — | — | Planned (see below) |
+| **Web-UI Playground** (`ui/vue/`) | `[DONE]` | — | — | **Multi-Runtime ✓ 2026-04-18** |
 
 ---
 
@@ -1693,7 +1693,7 @@ SPL is the language of this network. Momagrid is the operating system. The AI qu
 
 ## Web-UI Frontend for SPL v3.0 Launch
 
-*Added: 2026-04-18 (session 7). SPL.ts makes this achievable without a Python backend.*
+*Added: 2026-04-18 (session 7). MVP shipped session 8 (2026-04-18).*
 
 ### Vision
 
@@ -1727,52 +1727,60 @@ Momagrid Hub integration via `HubRegistry` (future) — dispatch from browser to
 
 ### Milestones
 
-| Milestone | Description | Depends on | Status |
-|-----------|-------------|------------|--------|
-| `spl-ts` ESM bundle | `npm run build` → `dist/spl-ts.esm.js` (browser entry point) | SPL.ts complete | `[TODO]` |
-| Monaco SPL syntax | `.tmLanguage` grammar for SPL keywords + token highlighting | — | `[TODO]` |
-| React/Vue/Svelte shell | Single-page app: editor + output + adapter selector | ESM bundle | `[TODO]` |
-| Cookbook browser panel | Load `cookbook_catalog_ts.json`, browse + click-to-load recipe | SPL.ts catalog | `[TODO]` |
-| EchoAdapter live output | Run SPL with echo — instant, no LLM, zero config | Shell complete | `[TODO]` |
-| Ollama integration | `OLLAMA_ORIGINS=*` guide + OllamaAdapter in browser | Shell complete | `[TODO]` |
-| API key adapter | OpenAI-compat adapter with in-browser key storage (localStorage) | Shell complete | `[TODO]` |
-| GitHub Pages deploy | `gh-pages` branch auto-deploy via GitHub Actions | Shell + bundle | `[TODO]` |
-| PWA manifest + service worker | Installable on desktop and mobile | Deploy | `[TODO]` |
-| Momagrid dispatch | `HubRegistry` in SPL.ts → submit workflow to LAN Hub from browser | HubRegistry | `[TODO]` |
+| Milestone | Description | Status |
+|-----------|-------------|--------|
+| Vue 3 + Vite shell | `ui/vue/` — editor + output + adapter selector | **`[DONE]` ✓ 2026-04-18** |
+| Monaco SPL syntax | Monarch tokenizer: keywords, variables, $$strings$$, comments, `spl-dark` theme | **`[DONE]` ✓ 2026-04-18** |
+| EchoAdapter in browser | Instant deterministic run, zero config | **`[DONE]` ✓ 2026-04-18** |
+| OllamaAdapter in browser | `OLLAMA_ORIGINS=*` + fetch adapter | **`[DONE]` ✓ 2026-04-18** |
+| OpenAI + Anthropic adapters | In-browser key storage (`localStorage`) | **`[DONE]` ✓ 2026-04-18** |
+| Recipe picker | Hello World · Ollama Proxy · Self-Refine built in | **`[DONE]` ✓ 2026-04-18** |
+| Params panel | `key=value` INPUT bindings | **`[DONE]` ✓ 2026-04-18** |
+| Output panel | `committedValue`, status badge, latency, token counts | **`[DONE]` ✓ 2026-04-18** |
+| GitHub Pages deploy | `npm run build` → `dist/`; CI workflow | `[TODO]` |
+| PWA manifest + service worker | Installable on desktop and mobile | `[TODO]` |
+| Cookbook browser panel | Load `cookbook_catalog_ts.json`, browse + click-to-load | `[TODO]` |
+| Momagrid Hub dispatch | `HubRegistry` in browser → submit to LAN Hub | `[TODO]` |
+| WASM in-browser LLM | WebLLM adapter — fully offline, no Ollama needed | `[TODO]` |
 
 ### Front-End Technology Choice
 
-| Option | Pros | Cons | Recommendation |
-|--------|------|------|----------------|
-| **React + Vite** | Largest ecosystem; Monaco integration well documented | Bundle size; JSX toolchain | **Recommended** — fastest to working prototype |
-| Svelte | Smaller bundle; less boilerplate | Smaller community; Monaco integration less mature | Good alternative if bundle size matters |
-| Vanilla JS + Web Components | Zero framework dependency | More code; harder to maintain | Only if framework is a hard constraint |
+| Option | Pros | Cons | Decision |
+|--------|------|------|----------|
+| **Vue 3 + Vite** | Author has Vue experience; `<script setup>` + TypeScript native; ~34 KB runtime | Smaller ecosystem than React | **Chosen ✓** |
+| React + Vite | Largest ecosystem; Monaco well documented | Bundle larger; JSX toolchain | Future community target (`ui/react/`) |
+| Svelte | Smallest bundle | Smaller community; Monaco less mature | Future community target |
+| Flutter | iOS + Android + Desktop | Dart expertise required | Future community target (`ui/flutter/`) |
 
-Recommendation: **React + Vite** for the initial launch. The SPL.ts runtime is framework-agnostic —
-switching the shell later is possible without touching the runtime.
+**Decision: Vue 3 + Vite** — user has Vue experience; `<script setup>` is idiomatic TypeScript;
+runtime is framework-agnostic so community can add `ui/react/`, `ui/flutter/`, etc. independently.
 
-### Priority for Launch
+### MVP Status (session 8)
 
-The minimum viable Web-UI for SPL v3.0 launch:
-1. Monaco editor with SPL highlighting
-2. EchoAdapter run (no LLM) — proves the runtime works in browser
-3. Cookbook recipe browser — browse + load any recipe
-4. OllamaAdapter — for users with local Ollama
-5. GitHub Pages deploy
+1. ✅ Monaco editor with SPL highlighting
+2. ✅ EchoAdapter run in browser — runtime confirmed working
+3. ✅ Three built-in recipes (Hello World, Ollama Proxy, Self-Refine)
+4. ✅ OllamaAdapter — local inference in browser
+5. ✅ OpenAI + Anthropic adapters with `localStorage` key storage
+6. ⬜ GitHub Pages deploy via CI
 
-Items 1–5 can be built on top of the existing SPL.ts ESM export with ~500 lines of React.
-The LLM adapters, Momagrid integration, and PWA features are follow-on.
+Items deferred to follow-on:
+- Cookbook browser (full catalog from `cookbook_catalog_ts.json`)
+- Momagrid Hub dispatch
+- PWA manifest / service worker
+- WASM in-browser LLM adapter
 
 ### Repo Strategy
 
-| Option | Approach |
+| Option | Decision |
 |--------|----------|
-| New repo `SPL.ui` | Clean separation; own npm package; deploys independently |
-| Add `web/` to `SPL.ts` repo | Easier to share types; single repo; simpler CI |
+| New repo `SPL.ui` | Deferred — premature until Playground grows into distinct product |
+| **`ui/` inside `SPL.ts` repo** | **Chosen ✓** — shares types, single CI, `@spl` alias, zero duplication |
 
-Recommendation: **`web/` directory inside `SPL.ts` repo** for the initial launch.
-The `spl-ts` CLI and the `web/` frontend share the same compiled ESM bundle — no duplication.
-Promote to its own repo if the Web-UI grows into a distinct product.
+`ui/` (not `web/`) is the correct abstraction: it covers browser (`vue/`, `react/`),
+mobile (`react-native/`, `flutter/`), and desktop (`tauri/`) targets.
+Each `ui/<framework>/` is a self-contained community contribution unit.
+See `SPL30/docs/spl-ui-approach-1.md` for the full contribution interface contract.
 
 ---
 

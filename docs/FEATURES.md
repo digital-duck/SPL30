@@ -1,6 +1,6 @@
 # SPL — Implemented Features
 
-*Last updated: 2026-04-18 (session 6).*
+*Last updated: 2026-04-18 (session 8).*
 *SPL30 is the canonical source of truth for SPL language design and runtime features.*
 
 Status legend:
@@ -188,6 +188,7 @@ against SPL30 via **NDD closure** (`spl3 run --adapter echo` as oracle, `diff` a
 | Python SPL 3.0 (`spl3`) | `spl3` | No | No | `[DONE]` |
 | Go (SPL.go) | `spl-go` | No | No | `[DONE]` |
 | TypeScript (SPL.ts) | `spl-ts` | Yes | Yes | `[DONE]` |
+| **SPL Playground** (Vue 3) | — | **Yes** | No | **`[DONE]` ✓ 2026-04-18** |
 
 SPL.ts architecture constraint: core (lexer/parser/executor/stdlib) uses zero
 Node.js-specific APIs — only Web APIs (`fetch`, `console`, `Map`, `Promise`).
@@ -301,7 +302,7 @@ Default path is **deterministic** for supported targets; `--llm` opts into LLM c
 |-------------------|--------|------------|-------------|
 | `go` | `[DONE]` | `transpiler_go.py` — Gemini impl, Claude fixed 10 issues (session 5) | Both recipes compile + `go build` clean |
 | `ts` | `[DONE]` | `transpiler_ts.py` — Claude impl (session 5) | `tsc --strict` exit 0; `tsx` runs live |
-| `python/langgraph` | `[PARTIAL]` | `transpiler_langgraph.py` — plan by Claude, impl by Opus (in progress) | Pending gaming PC validation |
+| `python/langgraph` | `[DONE]` | `transpiler_langgraph.py` — deterministic transpiler shipped | `tsc`/`pytest` clean; gaming PC live validation pending |
 
 ### LLM compilation (`--llm` flag required for deterministic targets, default for others)
 
@@ -331,6 +332,39 @@ Default path is **deterministic** for supported targets; `--llm` opts into LLM c
 | Overwrite guard (`--overwrite` flag) | `[DONE]` |
 | `targets-ref/` hand-crafted references (go, python/langgraph, python/crewai, python/autogen) | `[DONE]` |
 | NDD closure validation (`splc judge` command) | `[TODO]` — gaming PC milestone |
+
+---
+
+## Web-UI Playground
+
+Vue 3 + Vite browser playground at `SPL.ts/ui/vue/`. Runs SPL.ts entirely in the browser tab —
+no backend server, no install required. Static deploy to GitHub Pages / Netlify / Vercel.
+
+| Component | Description | Status |
+|-----------|-------------|--------|
+| Monaco Editor | SPL syntax highlighting (keywords, variables, $$strings$$, comments) | `[DONE]` ✓ 2026-04-18 |
+| SPL.ts runtime in browser | Lexer → Parser → Executor via `@spl` Vite alias | `[DONE]` ✓ 2026-04-18 |
+| EchoAdapter in browser | Deterministic dry-run, zero config | `[DONE]` ✓ 2026-04-18 |
+| OllamaAdapter in browser | Local inference (`OLLAMA_ORIGINS=*`) | `[DONE]` ✓ 2026-04-18 |
+| OpenAI adapter + key storage | `localStorage` key; OpenAI / Groq / Mistral compatible | `[DONE]` ✓ 2026-04-18 |
+| Anthropic adapter + key storage | `localStorage` key | `[DONE]` ✓ 2026-04-18 |
+| Recipe picker | Hello World · Ollama Proxy · Self-Refine built in | `[DONE]` ✓ 2026-04-18 |
+| Params panel | `key=value` INPUT bindings | `[DONE]` ✓ 2026-04-18 |
+| Output panel | `committedValue`, status badge, latency, token counts | `[DONE]` ✓ 2026-04-18 |
+| GitHub Pages deploy | `npm run build` → `dist/`; CI workflow | `[TODO]` |
+| PWA manifest / service worker | Installable on desktop + mobile | `[TODO]` |
+| Momagrid Hub dispatch | `HubRegistry` in browser → submit to LAN Hub | `[TODO]` |
+| WASM in-browser LLM | WebLLM adapter (offline, no Ollama needed) | `[TODO]` |
+
+### `ui/` platform matrix
+
+| Directory | Platform | Framework | Status |
+|-----------|----------|-----------|--------|
+| `ui/vue/` | Browser + PWA | Vue 3 + Vite | **`[DONE]` ✓ 2026-04-18** |
+| `ui/react/` | Browser + PWA | React + Vite | Future community contribution |
+| `ui/react-native/` | iOS + Android | React Native | Future community contribution |
+| `ui/flutter/` | iOS + Android + Desktop | Flutter / Dart | Future community contribution |
+| `ui/tauri/` | Native desktop (Win/Mac/Linux) | Tauri + Vue/React | Future community contribution |
 
 ---
 
