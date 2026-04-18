@@ -17,16 +17,18 @@
         "run",
         "cookbook/50_code_pipeline/code_pipeline.spl",
         "--param",
-        "spec=Write a binary search function that returns the index or -1"
+        "spec=Write a binary search function that returns the index or -1",
+        "--param",
+        "pipeline_model=gemma3"
       ],
-      "dir": "56_code_pipeline",
+      "dir": "50_code_pipeline",
       "log": "code_pipeline",
       "is_active": true,
       "approval_status": "new",
       "category": "agentic",
       "tier": 1,
       "requires": [
-        "ollama:gemma4"
+        "ollama:gemma3"
       ]
     },
     {

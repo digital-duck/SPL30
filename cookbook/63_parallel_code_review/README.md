@@ -53,23 +53,24 @@ No API keys required for local runs.
 ```bash
 # Inline code snippet
 spl3 run cookbook/63_parallel_code_review/parallel_code_review.spl \
-    code="def add(a, b): return a - b"
+    --param code="def add(a, b): return a - b" \
+    --param review_model="gemma3"
 
 # From a file
 spl3 run cookbook/63_parallel_code_review/parallel_code_review.spl \
-    code="$(cat my_module.py)" lang=python
+    --param code="$(cat my_module.py)" lang=python
 
 # Go code
 spl3 run cookbook/63_parallel_code_review/parallel_code_review.spl \
-    code="$(cat main.go)" lang=go model=gemma4
+    --param code="$(cat main.go)" lang=go model=gemma4
 
 # With spl-go
 spl-go run cookbook/63_parallel_code_review/parallel_code_review.spl \
-    code="def add(a, b): return a - b" --adapter ollama -m gemma4
+    --param code="def add(a, b): return a - b" --adapter ollama -m gemma4
 
 # Dry-run
 spl-go run cookbook/63_parallel_code_review/parallel_code_review.spl \
-    code="def add(a, b): return a - b" --adapter echo
+    --param code="def add(a, b): return a - b" --adapter echo
 ```
 
 ---

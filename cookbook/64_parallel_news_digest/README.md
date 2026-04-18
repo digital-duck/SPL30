@@ -3,7 +3,7 @@
 **Category:** agentic / SPL 3.0  
 **SPL version:** 3.0  
 **Type:** TEXT → TEXT  
-**LLM required:** Yes — any text model (default: `gemma4`)  
+**LLM required:** Yes — any text model (default: `gemma3`)  
 **Demonstrates:** `CALL PARALLEL`, workflow fan-out + merge, pure-text pipeline
 
 ---
@@ -46,7 +46,7 @@ No `run.py` needed — pure SPL, runs directly with `spl3 run` or `spl-go run`.
 
 ```bash
 ollama serve
-ollama pull gemma4      # or any text model: llama3.2, qwen3, etc.
+ollama pull gemma3      # or any text model: llama3.2, phi4, etc.
 ```
 
 No API keys, no external services beyond Ollama.
@@ -56,22 +56,22 @@ No API keys, no external services beyond Ollama.
 ## Running
 
 ```bash
-# Default topics, default model (gemma4)
+# Default topics, default model (gemma3)
 spl3 run cookbook/64_parallel_news_digest/parallel_news_digest.spl
 
 # Custom topics
 spl3 run cookbook/64_parallel_news_digest/parallel_news_digest.spl \
-    topic_tech="quantum computing and post-silicon chips" \
-    topic_science="CRISPR gene editing clinical trials" \
-    topic_business="electric vehicle market slowdown"
+    --param topic_tech="quantum computing and post-silicon chips" \
+    --param topic_science="CRISPR gene editing clinical trials" \
+    --param topic_business="electric vehicle market slowdown"
 
 # Different model
 spl3 run cookbook/64_parallel_news_digest/parallel_news_digest.spl \
-    model=llama3.2
+    --param digest_model=llama3.2
 
 # With spl-go
 spl-go run cookbook/64_parallel_news_digest/parallel_news_digest.spl \
-    --adapter ollama -m gemma4
+    --adapter ollama --param digest_model=gemma3
 
 # Dry-run (no LLM calls — inspect prompt assembly)
 spl-go run cookbook/64_parallel_news_digest/parallel_news_digest.spl \

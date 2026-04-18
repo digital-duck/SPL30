@@ -19,7 +19,7 @@
 -- Run locally (Ollama):
 --   spl3 run parallel_news_digest.spl
 --   spl3 run parallel_news_digest.spl topic_tech="quantum computing breakthroughs"
---   spl3 run parallel_news_digest.spl digest_model=gemma4
+--   spl3 run parallel_news_digest.spl digest_model=gemma3
 --
 -- Run with spl-go:
 --   spl-go run parallel_news_digest.spl --adapter ollama --param digest_model=gemma3
@@ -64,7 +64,7 @@ WORKFLOW summarise_single
     INPUT:
         @topic   TEXT,
         @context TEXT    DEFAULT '',
-        @digest_model   TEXT    DEFAULT 'gemma4',
+        @digest_model   TEXT    DEFAULT 'gemma3',
         @log_dir TEXT    DEFAULT ''
     OUTPUT: @summary TEXT
 DO
@@ -83,7 +83,7 @@ WORKFLOW parallel_news_digest
         @topic_tech     TEXT    DEFAULT 'AI and large language models',
         @topic_science  TEXT    DEFAULT 'space exploration and astronomy',
         @topic_business TEXT    DEFAULT 'global markets and energy transition',
-        @digest_model   TEXT    DEFAULT 'gemma4',
+        @digest_model   TEXT    DEFAULT 'gemma3',
         @output_budget  INTEGER DEFAULT 512,
         @log_dir        TEXT    DEFAULT 'cookbook/64_parallel_news_digest/logs-spl'
     OUTPUT: @digest TEXT

@@ -27,7 +27,7 @@ WORKFLOW security_audit
     INPUT:
         @code    TEXT,
         @lang    TEXT DEFAULT 'python',
-        @review_model   TEXT DEFAULT 'gemma4',
+        @review_model   TEXT DEFAULT 'gemma3',
         @log_dir TEXT DEFAULT ''
     OUTPUT: @feedback TEXT
 DO

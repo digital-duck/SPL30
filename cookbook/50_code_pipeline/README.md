@@ -116,7 +116,7 @@ The closure report is appended to `@docs` as a final section.
 ```bash
 spl3 run cookbook/50_code_pipeline/code_pipeline.spl \
     --adapter ollama \
-    --param model=gemma3 \
+    --param pipeline_model=gemma3 \
     --param spec="Write a binary search function that returns the index or -1" \
     --param check_closure=FALSE
 

@@ -33,7 +33,7 @@ IMPORT '02_test_generator'
 
 -- ── Merge function ─────────────────────────────────────────────────────────────
 
-CREATE FUNCTION merge_reviews(style TEXT, security TEXT, tests TEXT) RETURN TEXT
+CREATE FUNCTION merge_reviews(style TEXT, sec_audit TEXT, tests TEXT) RETURN TEXT
 AS $$
 You are a senior engineering lead consolidating three independent code-review reports
 into a single, actionable plan.
@@ -42,7 +42,7 @@ Style & Correctness Review:
 {style}
 
 Security Audit:
-{security}
+{sec_audit}
 
 Generated Test Cases:
 {tests}
