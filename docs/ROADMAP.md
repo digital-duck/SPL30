@@ -19,9 +19,10 @@ Axis 1: Language Evolution
   Stable constructs graduate to the multi-runtime tier.
 
 Axis 2: Research Contributions
+  text2SPL - .spl script generation from intent expressed in natural language
+  splc / DODA  — compile once, run anywhere across heterogeneous silicon
   NDD Closure  — deterministic oracle-based runtime correctness testing
   Agentic Integrity — behavioral equivalence metric for AI safety
-  splc / DODA  — compile once, run anywhere across heterogeneous silicon
 
 Axis 3: Multi-Runtime Expansion
   SPL (Python / SPL30)  — reference implementation, lab for new features
