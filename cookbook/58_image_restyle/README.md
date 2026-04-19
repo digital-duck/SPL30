@@ -62,6 +62,7 @@ pip install Pillow
 
 ```bash
 export OPENAI_API_KEY=sk-...
+export OPENAI_BASE_URL="https://api.openai.com/v1"
 
 # Default — watercolor style
 python cookbook/58_image_restyle/run.py \
@@ -76,12 +77,12 @@ python cookbook/58_image_restyle/run.py \
 python cookbook/58_image_restyle/run.py \
     --image cookbook/58_image_restyle/sample/photo.jpg \
     --style "oil painting, impressionist, thick brushstrokes" \
-    --quality hd
+    --aspect landscape --quality hd
 
 # Cyberpunk neon, vivid mode
 python cookbook/58_image_restyle/run.py \
     --image cookbook/58_image_restyle/sample/photo.jpg \
-    --style "cyberpunk neon city" --dalle-style vivid
+    --style "cyberpunk neon city, rain-slicked streets" --dalle-style vivid
 
 # Preserve specific elements explicitly
 python cookbook/58_image_restyle/run.py \
@@ -101,6 +102,8 @@ cp cookbook/51_image_caption/sample/photo.jpg \
 
 ## Parameters
 
+### SPL workflow params
+
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `@photo` | IMAGE | `cookbook/58_image_restyle/sample/photo.jpg` | Source image file path |
@@ -111,6 +114,20 @@ cp cookbook/51_image_caption/sample/photo.jpg \
 | `@vision_model` | TEXT | `gemma4:e4b` | Local vision model for image analysis |
 | `@output_dir` | TEXT | `cookbook/58_image_restyle/outputs` | Directory to write restyled image |
 | `@log_dir` | TEXT | `cookbook/58_image_restyle/logs-spl` | Directory for log output |
+
+### CLI flags (run.py)
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--image` | *(required)* | Source image path |
+| `--style` | `watercolor painting, soft edges, pastel tones` | Style transformation to apply |
+| `--preserve` | `composition, main subject, mood` | Elements to preserve |
+| `--aspect` | `square` | `square` \| `landscape` \| `portrait` |
+| `--quality` | `standard` | `standard` \| `hd` |
+| `--dalle-style` | `natural` | `natural` \| `vivid` |
+| `--vision-model` | `gemma4:e4b` | Ollama vision model |
+| `--max-dim` | `1024` | Max image dimension before encoding |
+| `--output-dir` | `cookbook/58_image_restyle/outputs` | Directory to write restyled image |
 
 ---
 

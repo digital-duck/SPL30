@@ -58,7 +58,7 @@ import click
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_REPO_ROOT))
 
-from spl.adapters.liquid import LiquidAdapter   # noqa: E402
+from spl3.adapters.liquid import LiquidAdapter   # noqa: E402
 
 try:
     from openai import AsyncOpenAI as _AsyncOpenAI
@@ -122,10 +122,9 @@ async def synthesise_openai(
 
     print(f"[text_to_speech] → OpenAI {model} voice={voice} ({len(text)} chars) ...")
     t0 = time.perf_counter()
-    response = await client.audio.speech.create(**kwargs)
-    latency_ms = (time.perf_counter() - t0) * 1000
-
-    response.stream_to_file(str(out_path))
+    async with client.audio.speech.with_streaming_response.create(**kwargs) as response:
+        latency_ms = (time.perf_counter() - t0) * 1000
+        await response.stream_to_file(str(out_path))
     size_kb = out_path.stat().st_size // 1024
     print(f"[text_to_speech] ✓ saved {out_path.name} ({size_kb} KB, {latency_ms:.0f} ms)")
     return out_path

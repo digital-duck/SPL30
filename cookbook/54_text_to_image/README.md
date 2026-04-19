@@ -58,14 +58,23 @@ ollama pull gemma4:e4b
 
 ```bash
 export OPENAI_API_KEY=sk-...
+export OPENAI_BASE_URL="https://api.openai.com/v1"
 
 # Basic prompt
 python cookbook/54_text_to_image/run.py \
     --prompt "A duck writing code at sunrise"
 
+[text_to_image] → DALL-E dall-e-3 (1024x1024, quality=standard) ...
+[text_to_image] DALL-E revised prompt: An engaging scene featuring a duck. The duck is sitting at a computer desk, its ...
+[text_to_image] ✓ saved generated_1776561500.png (1335 KB, 16561 ms)
+
+── Output ───────────────────────────────────────────────────────────
+Image saved: cookbook/54_text_to_image/outputs/generated_1776561500.png
+
+
 # Landscape HD with vivid style
 python cookbook/54_text_to_image/run.py \
-    --prompt "Tokyo skyline at night" \
+    --prompt "NYC skyline at night" \
     --aspect landscape --quality hd --dalle-style vivid
 
 # With gemma4 prompt enhancement
@@ -88,17 +97,34 @@ python cookbook/54_text_to_image/run.py \
 
 ## Parameters
 
+### SPL workflow params
+
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `@prompt` | TEXT | `A serene mountain lake at golden hour...` | Base text prompt |
 | `@style` | TEXT | `photorealistic` | Visual style applied during enhancement |
 | `@aspect` | TEXT | `landscape` | Aspect ratio: `landscape`, `portrait`, `square` |
 | `@quality` | TEXT | `hd` | DALL-E 3 quality: `standard` or `hd` |
+| `@dalle_style` | TEXT | `natural` | `natural` (realistic) \| `vivid` (dramatic) |
 | `@enhance` | BOOL | `TRUE` | Run gemma4 prompt enhancement before generation |
 | `@model` | TEXT | `dall-e-3` | Image generation model |
 | `@output_dir` | TEXT | `cookbook/54_text_to_image/outputs` | Directory to write generated image |
 | `@llm_model` | TEXT | `gemma4:e4b` | Local LLM for prompt enhancement |
 | `@log_dir` | TEXT | `cookbook/54_text_to_image/logs-spl` | Directory for log output |
+
+### CLI flags (run.py)
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--prompt` | *(required)* | Text description of the image |
+| `--style` | `photorealistic` | Style hint for prompt enhancement |
+| `--aspect` | `square` | `square` \| `landscape` \| `portrait` |
+| `--quality` | `standard` | `standard` \| `hd` (costs ~2× more) |
+| `--dalle-style` | `natural` | `natural` (realistic) \| `vivid` (dramatic) |
+| `--enhance` | off | Run prompt through Gemma4 before DALL-E |
+| `--model` | `dall-e-3` | `dall-e-3` \| `dall-e-2` |
+| `--llm-model` | `gemma4:e4b` | Ollama model for enhancement |
+| `--output-dir` | `cookbook/54_text_to_image/outputs` | Directory to write generated image |
 
 ---
 

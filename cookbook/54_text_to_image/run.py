@@ -47,7 +47,7 @@ import click
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(_REPO_ROOT))
 
-from spl.adapters.liquid import LiquidAdapter   # noqa: E402
+from spl3.adapters.liquid import LiquidAdapter   # noqa: E402
 
 try:
     from openai import AsyncOpenAI

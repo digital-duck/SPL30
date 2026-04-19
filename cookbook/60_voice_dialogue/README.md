@@ -76,7 +76,13 @@ out.write_bytes(response.content)
 print(f'audio saved: {out}')
 "
 
-# Option B — espeak (Linux)
+# Option B — macOS say + ffmpeg
+say -o cookbook/60_voice_dialogue/sample/question.aiff \
+    "What is SPL 3.0 and why does it matter?"
+ffmpeg -i cookbook/60_voice_dialogue/sample/question.aiff \
+       cookbook/60_voice_dialogue/sample/question.wav
+
+# Option C — espeak (Linux)
 espeak "What are the main features of SPL 3.0?" \
     -w cookbook/60_voice_dialogue/sample/question.wav
 ```
@@ -109,6 +115,11 @@ python cookbook/60_voice_dialogue/run.py \
     --audio cookbook/60_voice_dialogue/sample/question.mp3 \
     --tts-backend system
 
+# Different response model
+python cookbook/60_voice_dialogue/run.py \
+    --audio cookbook/60_voice_dialogue/sample/question.mp3 \
+    --llm-model phi4:latest
+
 # Custom output directory
 python cookbook/60_voice_dialogue/run.py \
     --audio cookbook/60_voice_dialogue/sample/question.mp3 \
@@ -119,16 +130,35 @@ python cookbook/60_voice_dialogue/run.py \
 
 ## Parameters
 
+### SPL workflow params
+
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `@audio_in` | AUDIO | `cookbook/60_voice_dialogue/sample/question.wav` | Source audio question file |
 | `@context` | TEXT | `''` | Optional context provided to the LLM responder |
 | `@persona` | TEXT | `a helpful assistant` | Persona description for the LLM |
+| `@asr_model` | TEXT | `liquid/lfm-2.5-1.2b-instruct:free` | Transcription model |
+| `@asr_backend` | TEXT | `openrouter` | ASR backend: `openrouter` \| `ollama` |
 | `@llm_model` | TEXT | `gemma4:e4b` | Ollama model for generating the text response |
 | `@tts_voice` | TEXT | `alloy` | OpenAI TTS voice |
 | `@tts_model` | TEXT | `tts-1` | OpenAI TTS model: `tts-1` or `tts-1-hd` |
 | `@output_dir` | TEXT | `cookbook/60_voice_dialogue/outputs` | Directory to write response audio |
 | `@log_dir` | TEXT | `cookbook/60_voice_dialogue/logs-spl` | Directory for log output |
+
+### CLI flags (run.py)
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--audio` | *(required)* | Voice question WAV/MP3 file |
+| `--context` | `""` | Text context to include in response |
+| `--persona` | `"a helpful assistant"` | LLM response persona |
+| `--asr-model` | `liquid/lfm-2.5-1.2b-instruct:free` | Transcription model |
+| `--asr-backend` | `openrouter` | `openrouter` \| `ollama` |
+| `--llm-model` | `gemma4:e4b` | Response LLM (Ollama) |
+| `--tts-voice` | `alloy` | OpenAI TTS voice |
+| `--tts-model` | `tts-1` | `tts-1` \| `tts-1-hd` \| `gpt-4o-mini-tts` |
+| `--tts-backend` | `openai` | `openai` \| `system` (`say` / `espeak`) |
+| `--output-dir` | `cookbook/60_voice_dialogue/outputs` | Directory to write response audio |
 
 ---
 

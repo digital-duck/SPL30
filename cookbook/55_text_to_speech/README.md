@@ -62,6 +62,7 @@ ollama pull gemma4:e4b
 
 ```bash
 export OPENAI_API_KEY=sk-...
+export OPENAI_BASE_URL="https://api.openai.com/v1"
 
 # Basic TTS
 python cookbook/55_text_to_speech/run.py \
@@ -76,6 +77,12 @@ python cookbook/55_text_to_speech/run.py \
 python cookbook/55_text_to_speech/run.py \
     --text "Natural language driven development is here." \
     --model tts-1-hd --voice alloy
+
+# Expressive TTS with acting instructions (gpt-4o-mini-tts)
+python cookbook/55_text_to_speech/run.py \
+    --text "Breaking news: SPL 3.0 ships!" \
+    --model gpt-4o-mini-tts --voice coral \
+    --instructions "Speak like an excited news anchor."
 
 # With script prep (cleans markdown, expands abbreviations)
 python cookbook/55_text_to_speech/run.py \
@@ -97,6 +104,8 @@ python cookbook/55_text_to_speech/run.py \
 
 ## Parameters
 
+### SPL workflow params
+
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `@text` | TEXT | `Welcome to SPL 3.0...` | Source text to convert to speech |
@@ -107,6 +116,20 @@ python cookbook/55_text_to_speech/run.py \
 | `@output_dir` | TEXT | `cookbook/55_text_to_speech/outputs` | Directory to write audio file |
 | `@llm_model` | TEXT | `gemma4:e4b` | Local LLM for script prep |
 | `@log_dir` | TEXT | `cookbook/55_text_to_speech/logs-spl` | Directory for log output |
+
+### CLI flags (run.py)
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--text` | *(required\*)* | Text to speak |
+| `--file` | *(required\*)* | Read text from file (mutually exclusive with `--text`) |
+| `--voice` | `alloy` | `alloy` \| `echo` \| `fable` \| `onyx` \| `nova` \| `shimmer` |
+| `--model` | `tts-1` | `tts-1` \| `tts-1-hd` \| `gpt-4o-mini-tts` |
+| `--instructions` | — | Speaking instructions (`gpt-4o-mini-tts` only) |
+| `--prep` | off | Clean script via Gemma4 before TTS |
+| `--tone` | `neutral` | Tone hint for script prep |
+| `--backend` | `openai` | `openai` \| `system` (`say` / `espeak`) |
+| `--output-dir` | `cookbook/55_text_to_speech/outputs` | Directory to write audio file |
 
 ---
 
