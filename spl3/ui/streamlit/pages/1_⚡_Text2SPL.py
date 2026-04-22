@@ -204,6 +204,17 @@ with left:
         key="description",
     )
 
+    # ── Approved diagram banner ─────────────────────────────────────────────────
+
+    if st.session_state.get("mermaid_approved") and st.session_state.get("mermaid_diagram"):
+        with st.expander("✓ Approved Mermaid diagram will be used as structural context", expanded=False):
+            st.code(st.session_state["mermaid_diagram"], language="markdown")
+            if st.button("Clear diagram context", key="btn_clear_mermaid"):
+                st.session_state["mermaid_approved"] = False
+                st.rerun()
+    else:
+        st.caption("Tip: approve a diagram on the **Text2Mermaid** page to guide compilation.")
+
     # ── Script name + version preview ──────────────────────────────────────────
 
     desc_val = description.strip() or EXAMPLES.get(mode or "", "")
@@ -258,8 +269,21 @@ with left:
         else:
             file_version = cur_v if (overwrite and cur_v) else (1 if cur_v is None else cur_v + 1)
             spl_file = SCRIPTS_DIR / f"{effective_name}_v{file_version}_{uuid.uuid4().hex[:6]}.spl"
+
+            # Augment description with approved Mermaid diagram (structural contract)
+            approved_diagram = st.session_state.get("mermaid_approved") and st.session_state.get("mermaid_diagram", "")
+            if approved_diagram:
+                compile_desc = (
+                    f"{desc}\n\n"
+                    f"Use the following Mermaid diagram as the structural blueprint "
+                    f"(nodes → SPL steps, diamonds → EVALUATE, back-edges → WHILE loops):\n\n"
+                    f"{approved_diagram}"
+                )
+            else:
+                compile_desc = desc
+
             cmd = [
-                "spl", "text2spl", desc,
+                "spl", "text2spl", compile_desc,
                 "--mode", mode,
                 "--no-validate",
                 "-o", str(spl_file),

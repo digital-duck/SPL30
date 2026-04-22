@@ -26,7 +26,8 @@ Use the sidebar to navigate:
 
 | Page | What it does |
 |---|---|
-| **Text-to-SPL** | Enter a description, compile to SPL, inspect the code, and run it |
+| **Text2Mermaid** | Visualise your workflow intent as a Mermaid diagram; approve before compiling |
+| **Text-to-SPL** | Enter a description (+ optional approved diagram), compile to SPL, and run |
 | **Review** | Browse all generated scripts and their execution history |
 | **Code-RAG** | Manage the retrieval store that improves future compilations |
 | **SPLc** | Compile a `.spl` logical view into Go / Python / LangGraph / CrewAI / AutoGen |
@@ -51,17 +52,21 @@ n_rag      = rag.count() if rag.is_available() else -1
 
 n_spl3 = spl3_rag.count() if spl3_rag.is_available() else -1
 
-col1, col2, col3, col4, col5 = st.columns(5)
-col1.metric("Scripts generated",    len(scripts))
-col2.metric("Executions recorded",  len(executions))
-col3.metric("Successful runs",      success)
+diagrams_dir = Path(__file__).parent / "data" / "diagrams"
+n_diagrams = len(list(diagrams_dir.glob("*.mmd"))) if diagrams_dir.exists() else 0
+
+col1, col2, col3, col4, col5, col6 = st.columns(6)
+col1.metric("Diagrams approved",    n_diagrams, help="Mermaid diagrams approved via Text2Mermaid")
+col2.metric("Scripts generated",    len(scripts))
+col3.metric("Executions recorded",  len(executions))
+col4.metric("Successful runs",      success)
 
 if n_rag >= 0:
-    col4.metric("Code-RAG pairs",   n_rag)
+    col5.metric("Code-RAG pairs",   n_rag)
 else:
-    col4.metric("Code-RAG pairs",   "n/a", help="chromadb not installed")
+    col5.metric("Code-RAG pairs",   "n/a", help="chromadb not installed")
 
 if n_spl3 >= 0:
-    col5.metric("SPL3 Cookbook",    n_spl3, help="Recipes in SPL3 RAG store")
+    col6.metric("SPL3 Cookbook",    n_spl3, help="Recipes in SPL3 RAG store")
 else:
-    col5.metric("SPL3 Cookbook",    "n/a", help="Run index_recipes.py to populate")
+    col6.metric("SPL3 Cookbook",    "n/a", help="Run index_recipes.py to populate")
