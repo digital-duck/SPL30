@@ -1,11 +1,12 @@
 """SPL 3.0 CLI: spl
 
 Commands:
-  spl register <path>       Register workflows from .spl file(s) into Hub registry
-  spl run <file.spl>        Run an orchestrator workflow
-  spl registry list         List registered workflows (local + Hub)
-  spl peers list            List peer Hubs and their workflow counts
-  spl peers add <url>       Add a peer Hub (peering handshake)
+  spl register <path>             Register workflows from .spl file(s) into Hub registry
+  spl run <file.spl>              Run an orchestrator workflow
+  spl describe <file.spl>         Generate a plain-English functional specification
+  spl registry list               List registered workflows (local + Hub)
+  spl peers list                  List peer Hubs and their workflow counts
+  spl peers add <url>             Add a peer Hub (peering handshake)
 """
 
 import asyncio
@@ -490,26 +491,45 @@ def cmd_code_rag():
 @click.option("--storage-dir", default=".spl/code_rag", show_default=True,
               help="Directory for the RAG vector store.")
 @click.option("--catalog", default=None,
-              help="Optional cookbook_catalog.json for richer descriptions.")
-def code_rag_seed(cookbook_dir, storage_dir, catalog):
+              help="Seed from cookbook_catalog.json (curated one-liner descriptions).")
+@click.option("--from-specs", is_flag=True, default=False,
+              help=(
+                  "Seed using Section 0 from describe-generated *-spec.md files. "
+                  "Gives the richest SPL-aware descriptions. Run 'code-rag describe-all' first."
+              ))
+@click.option("--all-active/--no-filter", default=True, show_default=True,
+              help="When seeding from catalog, skip inactive/disabled entries.")
+def code_rag_seed(cookbook_dir, storage_dir, catalog, from_specs, all_active):
     """Seed the Code-RAG index from a cookbook directory.
 
-    Indexes all .spl files as (description, SPL source) pairs.
-    If --catalog is provided, uses its descriptions instead of file headers.
+    Three seeding modes (in increasing description quality):
 
     \b
-    Example:
-      spl code-rag seed cookbook/code_pipeline/ --storage-dir .spl/code_rag
+    1. Default — file header comments as descriptions:
+         spl3 code-rag seed cookbook/
+
+    \b
+    2. Catalog — curated one-liner descriptions from cookbook_catalog.json:
+         spl3 code-rag seed --catalog cookbook/cookbook_catalog.json
+
+    \b
+    3. Specs — rich SPL-aware Section 0 from describe-generated spec files (best):
+         spl3 code-rag describe-all cookbook/ --adapter claude_cli
+         spl3 code-rag seed cookbook/ --from-specs
     """
     from spl3.code_rag import CodeRAGStore
     store = CodeRAGStore(storage_dir=storage_dir)
 
-    if catalog:
-        count = store.seed_from_catalog(catalog)
+    if from_specs:
+        count = store.seed_from_specs(cookbook_dir)
+        click.echo(f"Seeded {count} workflow(s) from describe-spec files under {cookbook_dir}")
+    elif catalog:
+        count = store.seed_from_catalog(catalog, only_active=all_active)
+        click.echo(f"Seeded {count} workflow(s) from catalog {catalog}")
     else:
         count = store.seed_from_dir(cookbook_dir)
+        click.echo(f"Seeded {count} workflow(s) from directory {cookbook_dir}")
 
-    click.echo(f"Seeded {count} workflow(s) into Code-RAG store at {storage_dir}")
     click.echo(f"Total indexed: {store.count()}")
 
 
@@ -531,6 +551,107 @@ def code_rag_query(query_text, storage_dir, top_k):
         click.echo(hit["spl_source"][:500])
 
 
+@cmd_code_rag.command("describe-all")
+@click.argument("cookbook_dir", default="cookbook")
+@click.option("--adapter", default="ollama", show_default=True,
+              help="LLM adapter used to generate each spec.")
+@click.option("--model", default=None, metavar="MODEL")
+@click.option("--spec-dir", default=None, metavar="DIR",
+              help="Write all spec files to DIR instead of alongside each .spl file.")
+@click.option("--catalog", default=None,
+              help="Restrict to active recipes listed in cookbook_catalog.json.")
+@click.option("--skip-existing", is_flag=True, default=True, show_default=True,
+              help="Skip recipes that already have a -spec.md file.")
+def code_rag_describe_all(cookbook_dir, adapter, model, spec_dir, catalog, skip_existing):
+    """Batch-generate describe specs for all canonical cookbook recipes.
+
+    Runs 'spl3 describe' on each .spl file and writes a *-spec.md alongside it
+    (or to --spec-dir). After this completes, run:
+
+    \b
+      spl3 code-rag seed cookbook/ --from-specs
+
+    to index the rich Section 0 descriptions into the RAG store.
+
+    \b
+    Examples:
+      spl3 code-rag describe-all cookbook/ --adapter claude_cli
+      spl3 code-rag describe-all cookbook/ --adapter claude_cli --catalog cookbook/cookbook_catalog.json
+    """
+    import json as _json
+
+    cookbook_path = Path(cookbook_dir)
+    if not cookbook_path.is_dir():
+        raise click.ClickException(f"Not a directory: {cookbook_dir}")
+
+    # Build candidate file list
+    if catalog:
+        catalog_data = _json.loads(Path(catalog).read_text(encoding="utf-8"))
+        entries = catalog_data if isinstance(catalog_data, list) else catalog_data.get("recipes", [])
+        spl_files = []
+        for entry in entries:
+            if not entry.get("is_active", True):
+                continue
+            if entry.get("approval_status", "approved") in ("disabled", "rejected"):
+                continue
+            if "args" in entry and len(entry["args"]) > 2:
+                # args[2] is project-root-relative, e.g. "./cookbook/05_.../self_refine.spl"
+                p = Path(entry["args"][2].lstrip("./"))
+                if p.exists():
+                    spl_files.append(p)
+    else:
+        # All .spl files under cookbook_dir, excluding generated variants
+        spl_files = [
+            p for p in sorted(cookbook_path.rglob("*.spl"))
+            if "generated-" not in str(p)
+        ]
+
+    total = len(spl_files)
+    click.echo(f"Describing {total} recipe(s) with adapter={adapter} ...")
+
+    try:
+        from spl3.adapters import get_adapter
+    except ImportError:
+        raise click.ClickException("spl-llm 2.0 not installed: pip install spl-llm>=2.0.0")
+
+    adapter_kwargs = {"model": model} if model else {}
+    llm = get_adapter(adapter, **adapter_kwargs)
+
+    done = skipped = failed = 0
+    for spl_file in spl_files:
+        stem = spl_file.stem
+        if spec_dir:
+            out_dir = Path(spec_dir)
+            out_dir.mkdir(parents=True, exist_ok=True)
+            spec_path = out_dir / f"{stem}-spec.md"
+        else:
+            spec_path = spl_file.parent / f"{stem}-spec.md"
+
+        if skip_existing and spec_path.exists():
+            click.echo(f"  [skip]  {spl_file.name}  (spec exists)")
+            skipped += 1
+            continue
+
+        try:
+            source = spl_file.read_text(encoding="utf-8")
+            prompt = _DESCRIBE_PROMPT.format(source=source)
+            result = asyncio.run(llm.generate(
+                prompt, **({"model": model} if model else {})
+            ))
+            spec_text = result if isinstance(result, str) else getattr(result, "content", str(result))
+            spec_path.write_text(spec_text, encoding="utf-8")
+            click.echo(f"  [ok]    {spl_file.name}  -> {spec_path.name}")
+            done += 1
+        except Exception as exc:
+            click.echo(f"  [fail]  {spl_file.name}: {exc}", err=True)
+            failed += 1
+
+    click.echo(f"\nDone: {done} generated, {skipped} skipped, {failed} failed  ({total} total)")
+    if done:
+        click.echo("\nNext step — seed RAG from specs:")
+        click.echo(f"  spl3 code-rag seed {cookbook_dir} --from-specs")
+
+
 @cmd_code_rag.command("stats")
 @click.option("--storage-dir", default=".spl/code_rag", show_default=True)
 def code_rag_stats(storage_dir):
@@ -539,3 +660,125 @@ def code_rag_stats(storage_dir):
     store = CodeRAGStore(storage_dir=storage_dir)
     click.echo(f"Code-RAG store: {storage_dir}")
     click.echo(f"  Indexed pairs: {store.count()}")
+
+
+# ------------------------------------------------------------------ #
+# spl3 describe                                                       #
+# ------------------------------------------------------------------ #
+
+_DESCRIBE_PROMPT = """\
+You are an expert in SPL (Structured Prompt Language), a declarative language for orchestrating
+LLM workflows. SPL key constructs are:
+
+  WORKFLOW <name>          — declares a named orchestration workflow
+  INPUT @<var> <TYPE>      — input parameter declaration with optional default (:= value)
+  OUTPUT @<var> <TYPE>     — output variable declaration
+  CREATE FUNCTION <name>   — defines a reusable prompt template with {{parameter}} slots
+  GENERATE <fn>(...) INTO @<var>   — calls an LLM using a prompt function, stores result
+  CALL <tool>(...) INTO @<var>     — invokes a side-effect tool (e.g. write_file, http_get)
+  WHILE <cond> DO ... END  — loop until condition is false
+  EVALUATE @<var> WHEN <pattern> THEN ... ELSE ... END  — branch on variable content
+  LOGGING <msg> LEVEL <INFO|DEBUG|WARN|ERROR>  — emit a structured log message
+  RETURN @<var> WITH <k>=<v>, ...  — return value with metadata (status, iteration count, etc.)
+  EXCEPTION WHEN <Type> THEN ...   — catch named exception types
+  Exception types: MaxIterationsReached, BudgetExceeded, HallucinationDetected,
+                   QualityBelowThreshold, ContextLengthExceeded, ModelOverloaded
+
+Read the following SPL script and produce a functional specification in plain English.
+
+Structure your output as Markdown with these sections IN ORDER:
+
+## 0. High-level Description
+Write 4-6 sentences of flowing prose (no bullet points) that form a self-contained description
+rich enough to serve as a prompt for regenerating this workflow from scratch.
+IMPORTANT: anchor your description using the SPL construct names above wherever they apply.
+Cover ALL of the following that are present in the script:
+- Pattern or technique (e.g. "self-refine", "map-reduce", "chain-of-thought")
+- Every CREATE FUNCTION — name, role, and any notable prompt convention (sentinel tokens,
+  scoring instructions, output format constraints)
+- Control flow expressed in SPL terms: WHILE condition, EVALUATE branch, RETURN metadata
+- Multi-model or multi-role design (which INPUT param drives each model choice)
+- CALL side-effects (file writes, external tools) and LOGGING strategy
+- Resource-limit strategy: EXCEPTION types handled and what each does
+
+## 1. Purpose
+One sentence summarising what the script accomplishes for the end user.
+
+## 2. Inputs
+A Markdown table — columns: Parameter | Default | Description.
+List every INPUT variable declared in the workflow.
+
+## 3. Process
+Numbered steps in plain language following actual execution order.
+
+## 4. Error Handling
+Bullet list of each EXCEPTION case and the workflow's response.
+
+## 5. Output
+What is returned, including status codes and any metadata fields.
+
+SPL Script:
+```spl
+{source}
+```
+
+Write the specification now.
+"""
+
+
+@main.command("describe")
+@click.argument("spl_file")
+@click.option("--adapter", default="ollama", show_default=True,
+              help="LLM adapter to use for generation.")
+@click.option("--model", default=None, metavar="MODEL",
+              help="Model override for the adapter.")
+@click.option("--spec-dir", default=None, metavar="DIR",
+              help="Directory to write the spec file (default: same directory as SPL_FILE).")
+def cmd_describe(spl_file, adapter, model, spec_dir):
+    """Generate a plain-English functional specification for SPL_FILE.
+
+    \b
+    Writes output to <filename>-spec.md alongside the .spl file by default.
+    Use --spec-dir to redirect the spec file to a different directory.
+
+    \b
+    Examples:
+      spl3 describe self_refine.spl
+      spl3 describe cookbook/05_self_refine/self_refine.spl --spec-dir docs/specs
+      spl3 describe my_workflow.spl --adapter ollama --model gemma3
+    """
+    path = Path(spl_file)
+    if not path.exists():
+        raise click.ClickException(f"File not found: {path}")
+
+    source = path.read_text(encoding="utf-8")
+    prompt = _DESCRIBE_PROMPT.format(source=source)
+
+    try:
+        from spl3.adapters import get_adapter
+    except ImportError:
+        raise click.ClickException("spl-llm 2.0 not installed: pip install spl-llm>=2.0.0")
+
+    adapter_kwargs = {"model": model} if model else {}
+    llm = get_adapter(adapter, **adapter_kwargs)
+
+    click.echo(f"Generating spec for {path.name} ...")
+    result = asyncio.run(llm.generate(prompt, **({"model": model} if model else {})))
+
+    spec_text = result if isinstance(result, str) else getattr(result, "content", str(result))
+
+    stem = path.stem
+    spec_filename = f"{stem}-spec.md"
+    if spec_dir:
+        out_dir = Path(spec_dir)
+        out_dir.mkdir(parents=True, exist_ok=True)
+        spec_path = out_dir / spec_filename
+    else:
+        spec_path = path.parent / spec_filename
+
+    spec_path.write_text(spec_text, encoding="utf-8")
+    click.echo(f"Spec written to: {spec_path}")
+
+
+if __name__ == "__main__":
+    main()

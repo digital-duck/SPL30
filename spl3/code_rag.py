@@ -107,27 +107,59 @@ class CodeRAGStore:
         _log.info("CodeRAGStore: seeded %d workflow(s) from %s", count, cookbook_dir)
         return count
 
-    def seed_from_catalog(self, catalog_path: str | Path) -> int:
+    def seed_from_catalog(self, catalog_path: str | Path,
+                          only_active: bool = True) -> int:
         """Index recipes from a JSON catalog file (cookbook_catalog.json format).
 
-        Catalog format: list of {"name", "description", "file"} objects.
+        Supports two catalog shapes:
+        - Legacy:  list of {"name", "description", "file"} objects
+        - Current: {"recipes": [...]} where each entry has "description", "args"
+                   (args[2] is the .spl path), and optional "is_active" /
+                   "approval_status" fields.
+
+        Parameters
+        ----------
+        only_active:
+            When True (default), skip entries where ``is_active`` is False or
+            ``approval_status`` is "disabled" / "rejected".
         """
         catalog_path = Path(catalog_path)
-        catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
-        base_dir = catalog_path.parent
+        raw = json.loads(catalog_path.read_text(encoding="utf-8"))
+
+        # Support both top-level list and {"recipes": [...]} wrapper
+        entries = raw if isinstance(raw, list) else raw.get("recipes", [])
 
         count = 0
-        for entry in catalog:
-            spl_file = base_dir / entry["file"]
-            if not spl_file.exists():
-                _log.warning("Catalog entry file not found: %s", spl_file)
+        for entry in entries:
+            # Honour active/approval filters
+            if only_active:
+                if not entry.get("is_active", True):
+                    continue
+                if entry.get("approval_status", "approved") in ("disabled", "rejected"):
+                    continue
+
+            # Resolve .spl file path — try "file" key first, then args[2], then dir+log
+            spl_file: Path | None = None
+            if "file" in entry:
+                spl_file = Path(entry["file"])
+            elif "args" in entry and len(entry["args"]) > 2:
+                # args[2] is project-root-relative, e.g. "./cookbook/05_.../self_refine.spl"
+                spl_file = Path(entry["args"][2].lstrip("./"))
+            elif "dir" in entry and "log" in entry:
+                spl_file = Path("cookbook") / entry["dir"] / f"{entry['log']}.spl"
+
+            if spl_file is None or not spl_file.exists():
+                _log.warning("Catalog entry file not found: %s (entry: %s)",
+                             spl_file, entry.get("name", "?"))
                 continue
+
             source = spl_file.read_text(encoding="utf-8")
             self.add_pair(
                 description=entry["description"],
                 spl_source=source,
                 metadata={
                     "name": entry.get("name", spl_file.stem),
+                    "category": entry.get("category", ""),
                     "source_file": str(spl_file),
                     "source": "catalog",
                 },
@@ -135,6 +167,49 @@ class CodeRAGStore:
             count += 1
 
         _log.info("CodeRAGStore: seeded %d workflow(s) from %s", count, catalog_path.name)
+        return count
+
+    def seed_from_specs(self, specs_root: str | Path,
+                        pattern: str = "**/*-spec.md") -> int:
+        """Index recipes using Section 0 from describe-generated spec files.
+
+        For each ``*-spec.md`` found under ``specs_root``, the matching
+        ``*.spl`` file (same directory, same stem without ``-spec``) is paired
+        with the extracted ``## 0. High-level Description`` prose and indexed.
+
+        This gives the richest semantic descriptions for RAG because Section 0
+        is written in SPL-native vocabulary by the describe pipeline.
+
+        Returns the number of pairs indexed.
+        """
+        specs_root = Path(specs_root)
+        count = 0
+        for spec_file in sorted(specs_root.rglob(pattern)):
+            spl_file = spec_file.parent / (spec_file.stem.replace("-spec", "") + ".spl")
+            if not spl_file.exists():
+                _log.warning("No matching .spl for spec: %s", spec_file)
+                continue
+
+            description = _extract_spec_section0(spec_file.read_text(encoding="utf-8"))
+            if not description:
+                _log.warning("No Section 0 found in %s — skipping", spec_file.name)
+                continue
+
+            source = spl_file.read_text(encoding="utf-8")
+            self.add_pair(
+                description=description,
+                spl_source=source,
+                metadata={
+                    "source_file": str(spl_file),
+                    "spec_file": str(spec_file),
+                    "source": "describe-spec",
+                },
+            )
+            count += 1
+            _log.debug("Indexed from spec: %s", spec_file.name)
+
+        _log.info("CodeRAGStore: seeded %d workflow(s) from specs under %s",
+                  count, specs_root)
         return count
 
     # ------------------------------------------------------------------ #
@@ -181,6 +256,29 @@ class CodeRAGStore:
 # ------------------------------------------------------------------ #
 # Helpers                                                             #
 # ------------------------------------------------------------------ #
+
+def _extract_spec_section0(spec_text: str) -> str:
+    """Extract the prose body of '## 0. High-level Description' from a spec file.
+
+    Returns the concatenated non-heading lines of that section, or '' if not found.
+    """
+    lines = spec_text.splitlines()
+    in_section = False
+    body: list[str] = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped.lower().startswith("## 0"):
+            in_section = True
+            continue
+        if in_section:
+            if stripped.startswith("## "):
+                break
+            if stripped in ("---", ""):
+                if not body:
+                    continue
+            body.append(stripped)
+    return " ".join(body).strip()
+
 
 def _extract_description(spl_source: str, fallback_name: str) -> str:
     """Extract a description from a .spl file's leading comment or WORKFLOW name."""
