@@ -1506,6 +1506,33 @@ Snap packages are distribution-agnostic and auto-updating. A Momagrid node on Ub
 | End-to-end snap install test | `[TODO]` | Cook when Ubuntu 26.04 is available |
 | Momagrid node snap auto-update | `[TODO]` | Snap revisions as workflow deployment channel |
 
+### Gemini CLI Adapter (`gemini_cli`) — Local Development via Google CLI
+
+*Added: 2026-04-25.*
+
+**Motivation:** Analogous to `claude_cli`, which routes requests through the Claude Code CLI at flat subscription cost, `gemini_cli` would route requests through Google's Gemini CLI tool — enabling free or flat-rate local development access to Gemini models without per-call API billing.
+
+**Precedent — provider vs. adapter distinction:**
+A single model provider can be reached via multiple adapters:
+- **Anthropic**: `anthropic` (direct REST API), `claude_cli` (local CLI, flat subscription), `openrouter` (proxy)
+- **Google / Gemini**: `gemini` (direct REST API), `ollama` (open-weight models like Gemma locally), `openrouter` (proxy), `gemini_cli` (local CLI, proposed)
+
+This mirrors the `claude_cli` pattern exactly: same Gemini models, zero per-call cost during development, local invocation.
+
+**Access:** Google Gemini CLI (https://github.com/google-gemini/gemini-cli) — requires Google account; free tier available.
+
+**Target models:** Gemini 2.0 Flash, Gemini 2.5 Pro (via CLI auth)
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| `GeminiCLIAdapter` (Python, `spl3`) | `[TODO]` | Mirror `ClaudeCLIAdapter` pattern: subprocess call to `gemini` CLI |
+| `gemini_cli` adapter (spl-go) | `[TODO]` | Port from Python |
+| `gemini_cli` adapter (spl-ts) | `[TODO]` | Node.js subprocess; browser fallback to `gemini` REST |
+| Cookbook smoke test | `[TODO]` | Run recipe 00 (`hello_world`) against `gemini_cli` |
+| NDD closure with `echo` adapter | `[TODO]` | Validate cross-adapter semantic equivalence |
+
+**Why this matters:** Completes the "free local development" adapter tier: `ollama` (open-weight, fully local), `claude_cli` (Anthropic, flat subscription), `gemini_cli` (Google, free tier). Developers can prototype workflows at zero marginal cost before switching to production adapters.
+
 ### Platform-to-Adapter Matrix
 
 The target is the full range of **consumer-grade CPU/GPU/NPU** hardware — not specific form factors. Any device a person already owns is a potential SPL node.
