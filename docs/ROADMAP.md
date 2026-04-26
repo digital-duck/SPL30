@@ -82,10 +82,143 @@ All five tests use the same `--task "What are the benefits of meditation?"` so l
 | Feature | Priority | Notes |
 |---------|----------|-------|
 | `splc judge` command | High | Automate NDD closure check: run echo oracle, run compiled artifact, compare structure |
+| `splc --target python/pocketflow` | **1st-class** | ETL mental model for data professionals; 100-LOC runtime; enterprise-validated; see section below |
 | Python/crewai deterministic transpiler | Medium | Follow same pattern as LangGraph transpiler |
+| `splc --target python/autogen` | Medium | Microsoft AutoGen — strong multi-agent patterns, good cookbook |
+| `splc --target python/crewai` | Medium | CrewAI — role-based agent patterns map well to SPL WORKFLOW |
 | `go.mod` generation alongside `.go` output | Medium | Currently missing; needed for `go mod tidy` |
 | `package.json` / `tsconfig.json` alongside `.ts` output | Medium | Makes the TS target self-contained |
+| `spl3 splc describe <codebase>` | Medium | See section below — reverse-engineers target implementation into spec for RAG seeding |
 | Type inference beyond `iteration` (Go) | Low | Done in session 5; verify with recipe 50 counter vars |
+
+---
+
+### splc Target: python/pocketflow  ← 1st-class target
+
+*Added: 2026-04-25*
+
+**python/pocketflow is the primary Python compile target.** It is promoted above
+LangGraph, AutoGen, and CrewAI because of three compounding advantages:
+
+**1. The ETL connection — our target audience already knows this pattern**
+
+SPL's target audience is data professionals who speak SQL and stored procedures.
+PocketFlow's three-method node lifecycle maps 1:1 to ETL — the mental model
+data engineers have carried for 30 years:
+
+| PocketFlow | ETL | SPL |
+|---|---|---|
+| `prep(shared)` | **Extract** — pull from staging | read `@variables` |
+| `exec(prep_res)` | **Transform** — process/enrich | `GENERATE fn() INTO @var` |
+| `post(shared, prep_res, exec_res)` | **Load** — write to warehouse | update `shared` store |
+| `shared` dict | Staging area between steps | workflow `@variables` |
+| `Flow` wiring nodes | Pipeline DAG | `WORKFLOW` |
+| `BatchFlow` | Bulk/parallel load | map-reduce pattern |
+| `max_retries + wait` | Retry on source failure | `EXCEPTION WHEN ... RETRY` |
+
+A data engineer reading compiled PocketFlow output can reason about it immediately.
+That is the lowest possible barrier to adoption for our audience.
+
+**2. Minimalist runtime — 100 lines, zero magic**
+
+The entire PocketFlow runtime is one file (`pocketflow/__init__.py`, ~100 LOC,
+minified). Generated code is readable Python — no framework abstractions to
+debug through. NDD closure testing is straightforward.
+
+**3. Rich cookbook validated in enterprise production**
+
+- 256+ `.py` files covering agents, RAG, debate, code-gen, batch, HITL, async,
+  multi-agent — strong overlap with SPL cookbook patterns
+- Creator is a Columbia PhD (database/data-engineering thesis) — the design
+  reflects 30 years of data pipeline discipline applied to LLM orchestration
+- Battle-tested at enterprise scale: upgrade-agent (1800 Node.js repos, 95%+
+  success), documentation-agent, report-agent (.pptx generation) all built on
+  PocketFlow + claude_cli
+
+**Compile target identifier:** `python/pocketflow`
+
+**Reference cookbook:** `/home/gong2/projects/wgong/PocketFlow/cookbook/`
+
+**SPL → PocketFlow construct mapping:**
+
+| SPL construct | PocketFlow equivalent |
+|---|---|
+| `WORKFLOW` | `Flow(start=first_node)` |
+| `INPUT @var` | `shared` dict initial values + `@click.option` |
+| `CREATE FUNCTION name(...)` | Prompt template string constant |
+| `GENERATE fn() INTO @var` | `Node.exec()` calling LLM, returns value |
+| `post()` writes result | `shared['var'] = exec_res` |
+| `WHILE ... DO` | Node returning `'loop'` action → back-edge to self |
+| `EVALUATE @var WHEN contains(...)` | Node returning action string → conditional edges |
+| `CALL write_file()` | Utility node or inline `open().write()` in `post()` |
+| `LOGGING ... LEVEL INFO` | `print(...)` in `post()` |
+| `EXCEPTION WHEN ... THEN` | `Node.exec_fallback(prep_res, exc)` override |
+| `EXCEPTION WHEN ... RETRY` | `Node(max_retries=N, wait=T)` constructor |
+| `CALL workflow_name()` | Sub-`Flow` instantiated and run inline |
+
+**Validation path:** NDD closure — run same task through `spl3 run` and compiled
+PocketFlow script, compare iteration count, final output, and approval token presence.
+
+---
+
+### splc describe — Reverse-Engineer Target Codebases into Specs
+
+*Added: 2026-04-25*
+
+**Motivation:** The `text2spl → splc` pipeline quality depends on the compiler knowing
+what idiomatic target code looks like. Just as `spl3 describe` generates Section 0
+specs from `.spl` files to prime the Code-RAG store for `text2spl`, `splc describe`
+would reverse-engineer working implementation examples into structured specs — then seed
+a separate **splc-RAG store** so the compiler has grounded few-shot examples of
+`(SPL pattern → target idiom)` pairs.
+
+**Proposed command:**
+
+```bash
+# Describe a single implementation file
+spl3 splc describe <target-impl-file> --target python/pocketflow
+
+# Batch-describe a whole cookbook
+spl3 splc describe-all <codebase-dir> --target python/pocketflow \
+  --output-dir .spl/splc_rag/pocketflow/
+
+# Seed the splc-RAG store
+spl3 splc code-rag seed --target python/pocketflow \
+  --from-specs .spl/splc_rag/pocketflow/
+```
+
+**What each spec captures:**
+- Which SPL constructs are present (inferred from structure)
+- The idiomatic target-language pattern used for each construct
+- Any runtime-specific conventions (e.g. PocketFlow shared store dict keys, LangGraph
+  `StateGraph` wiring, AutoGen `ConversableAgent` roles)
+
+**The full pipeline:**
+
+```
+SPL cookbook recipes
+    └─► spl3 describe          →  *-spec.md  (Section 0 = SPL-aware description)
+            └─► code-rag seed  →  text2spl RAG store  (SPL generation examples)
+
+Target implementation codebases (PocketFlow, LangGraph, AutoGen, CrewAI ...)
+    └─► splc describe          →  *-spec.md  (target-idiom description)
+            └─► splc code-rag  →  splc RAG store  (compilation examples per target)
+
+User intent
+    └─► text2spl  →  .spl  →  splc --target python/pocketflow  →  runnable Python
+```
+
+No fine-tuning. Both RAG stores together give the LLM compiler grounded, idiomatic
+examples for every step of the `intent → SPL → target code` chain.
+
+**Priority reference codebases per target:**
+
+| Target | Reference repo | Why |
+|---|---|---|
+| `python/pocketflow` | `/home/gong2/projects/wgong/PocketFlow/cookbook/` | 256 files, all patterns |
+| `python/langgraph` | [langchain-ai/langgraph](https://github.com/langchain-ai/langgraph) `examples/` | Official examples, StateGraph patterns |
+| `python/autogen` | [microsoft/autogen](https://github.com/microsoft/autogen) `samples/` | Multi-agent conversation patterns |
+| `python/crewai` | [crewAIInc/crewAI-examples](https://github.com/crewAIInc/crewAI-examples) | Role-based crew patterns |
 
 ---
 
@@ -131,6 +264,82 @@ the public internet.
 
 **Next step:** validate Hub-to-Hub peering between two local Hubs before scaling
 to WAN. The architecture scales to any number of peers without protocol changes.
+
+### DBOS — Durable Execution for Momagrid Hub
+
+*Added: 2026-04-25*
+
+The Momagrid Hub needs **durability** — if a node crashes mid-workflow, the
+workflow must resume from where it left off, not restart from scratch. This is
+the same problem DBOS solves.
+
+[DBOS](https://www.dbos.dev) (Database-Oriented Operating System) is a Python
+framework for durable workflow execution backed by Postgres. Its core promise:
+every function invocation is checkpointed — crash recovery resumes from the last
+committed step, not from zero.
+
+**Why DBOS is the right fit for Momagrid:**
+
+| Momagrid need | DBOS capability |
+|---|---|
+| Workflow step durability | `@DBOS.step()` checkpoints each step to Postgres |
+| Crash recovery | Automatic replay from last committed step |
+| Workflow identity | DBOS workflow ID = Momagrid `parent_event_id` |
+| Scheduled workflows | `@DBOS.scheduled()` — cron-style Hub triggers |
+| Long-running agents | DBOS handles hours/days-long workflows natively |
+| Audit trail | Every step persisted — full provenance for NDD closure |
+| Hub as OS kernel | DBOS Conductor = kernel scheduler; each SPL WORKFLOW = DBOS workflow |
+
+**Integration vision:**
+
+```
+SPL WORKFLOW
+    └─► Hub receives invocation event
+            └─► DBOS wraps execution: each GENERATE/CALL = @DBOS.step()
+                    └─► crash mid-workflow → Hub restarts → DBOS resumes from checkpoint
+                            └─► final RETURN commits result to event store
+```
+
+The Momagrid Hub becomes a **durable agent runtime** — not just a dispatcher but
+a fault-tolerant orchestrator that guarantees exactly-once execution semantics
+for every SPL workflow step.
+
+**Reference:** https://www.dbos.dev / https://github.com/dbos-inc/dbos-transact-py
+
+**Priority:** Medium-High — needed before Momagrid is production-grade for
+enterprise workloads. Validate on Hub + self_refine pattern first.
+
+**Horizontal scalability — the DBOS/Postgres ceiling and how we bypass it:**
+
+Postgres has a practical concurrency ceiling (~a few hundred active connections
+under heavy write load). A single Hub backed by DBOS will eventually hit this
+limit under high request volume. The solution is already built into Momagrid's
+architecture — it requires no new protocol:
+
+```
+High load on Hub A
+    └─► spin up Hub B:  mg hub up
+            └─► peer them:  mg peers add <Hub-B-url>
+                    └─► Hub A routes overflow workflows to Hub B via peering
+                            └─► each Hub has its own Postgres / DBOS instance
+                                    └─► horizontal scale-out = more Hubs, not bigger DB
+```
+
+Each Hub is an independent durable unit with its own Postgres. Peering is the
+load-distribution layer. `mg hub up` is the scale-out primitive — adding capacity
+is operationally trivial. This is the same design principle as internet BGP:
+no single router needs to handle all traffic; routing distributes the load
+across autonomous systems.
+
+**The scalability answer in one line:**
+> *Postgres limits a Hub; Hub-to-Hub peering limits Momagrid — and peering scales
+> to as many Hubs as needed.*
+
+This also means each Hub can be sized to its workload — a school Hub runs on a
+mini-PC, an enterprise Hub runs on a server, a cloud Hub runs on a VM fleet —
+all federated through the same peering protocol.
+
+---
 
 ### Moma Points as Compute Currency
 

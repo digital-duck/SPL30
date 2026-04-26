@@ -98,7 +98,7 @@ def _write_run_log(
 @click.option("--verbose", "-v", is_flag=True)
 @click.pass_context
 def main(ctx, hub, verbose):
-    """SPL 3.0 — Momagrid as Compute OS."""
+    """SPL 3.0 — Declarative Structured Prompt Language."""
     logging.basicConfig(level=logging.DEBUG if verbose else logging.INFO)
     ctx.ensure_object(dict)
     ctx.obj["hub"] = hub
@@ -122,8 +122,12 @@ def main(ctx, hub, verbose):
         "Google AI Studio, HuggingFace Chat, or any other playground."
     ),
 )
+@click.option("--tools", "tools_module", default=None, metavar="FILE",
+              help="Python module to load as CALL-able tools (e.g. tools/my_tools.py).")
+@click.option("--claude-allowed-tools", "allowed_tools", default=None, metavar="TOOLS",
+              help="Comma-separated tools for the claude_cli adapter (e.g. WebSearch,Bash).")
 @click.pass_context
-def run(ctx, spl_file, adapter, model, param, log_prompts):
+def run(ctx, spl_file, adapter, model, param, log_prompts, tools_module, allowed_tools):
     """Run an orchestrator .spl workflow with workflow composition."""
     from pathlib import Path
     from spl3.registry import LocalRegistry
@@ -143,10 +147,12 @@ def run(ctx, spl_file, adapter, model, param, log_prompts):
 
     hub_url = ctx.obj.get("hub")
 
-    asyncio.run(_run_workflow(path, adapter, model, params, hub_url, log_prompts))
+    asyncio.run(_run_workflow(path, adapter, model, params, hub_url, log_prompts,
+                              tools_module, allowed_tools))
 
 
-async def _run_workflow(path, adapter_name, model, params, hub_url, log_prompts=None):
+async def _run_workflow(path, adapter_name, model, params, hub_url, log_prompts=None,
+                        tools_module=None, allowed_tools=None):
     from spl3.registry import LocalRegistry, FederatedRegistry
     from spl3.composer import WorkflowComposer
 
@@ -172,8 +178,15 @@ async def _run_workflow(path, adapter_name, model, params, hub_url, log_prompts=
         registry = FederatedRegistry(local, hub_reg)
         click.echo(f"Hub registry: {hub_url}")
 
+    # Propagate --model into workflow @model param so USING MODEL @model picks it up.
+    # Only set if the user hasn't already passed --param model=... explicitly.
+    if model and "model" not in params:
+        params["model"] = model
+
     # Build executor and attach composer for CALL workflow_name() dispatch
     adapter_kwargs = {"model": model} if model else {}
+    if allowed_tools:
+        adapter_kwargs["allowed_tools"] = [t.strip() for t in allowed_tools.split(",")]
     _inner_adapter = get_adapter(adapter_name, **adapter_kwargs)
     capturing = _CapturingAdapter(_inner_adapter)
     executor = Executor(adapter=capturing)
@@ -181,6 +194,22 @@ async def _run_workflow(path, adapter_name, model, params, hub_url, log_prompts=
     if log_prompts:
         executor.prompt_log_dir = log_prompts
         click.echo(f"Prompt logging → {log_prompts}/")
+
+    # Load tools module (or auto-load tools.py from .spl directory)
+    if tools_module:
+        from spl.tools import load_tools_module
+        loaded = load_tools_module(tools_module)
+        for tool_name, tool_fn in loaded.items():
+            executor.register_tool(tool_name, tool_fn)
+        click.echo(f"Loaded {len(loaded)} tool(s) from {tools_module}")
+    else:
+        auto_tools = path.parent / "tools.py"
+        if auto_tools.exists():
+            from spl.tools import load_tools_module
+            loaded = load_tools_module(str(auto_tools))
+            for tool_name, tool_fn in loaded.items():
+                executor.register_tool(tool_name, tool_fn)
+            click.echo(f"Auto-loaded {len(loaded)} tool(s) from {auto_tools}")
 
     # Parse the file — needed for function registration and PROMPT fallback
     from spl.lexer import Lexer
@@ -663,6 +692,120 @@ def code_rag_stats(storage_dir):
 
 
 # ------------------------------------------------------------------ #
+# spl3 text2spl                                                       #
+# ------------------------------------------------------------------ #
+
+@main.command("text2spl")
+@click.argument("description")
+@click.option("--adapter", default=None, metavar="NAME",
+              help="Compiler adapter (default: ollama).")
+@click.option("--model", "-m", default=None, metavar="MODEL",
+              help="Compiler model.")
+@click.option("--mode", type=click.Choice(["auto", "prompt", "workflow"]),
+              default="auto", show_default=True,
+              help="Generation mode.")
+@click.option("--validate/--no-validate", default=True, show_default=True,
+              help="Validate generated SPL code.")
+@click.option("--output", "-o", default=None, metavar="FILE",
+              help="Write generated SPL to FILE.")
+def cmd_text2spl(description: str, adapter, model, mode, validate, output):
+    """Compile natural language DESCRIPTION into SPL 3.0 code.
+
+    \b
+    Examples:
+      spl3 text2spl "summarize a document with a 2000 token budget"
+      spl3 text2spl "build a review agent" --mode workflow -o review.spl
+      spl3 text2spl "classify intent" --adapter ollama -m gemma3
+    """
+    from spl.text2spl import Text2SPL
+    from spl.adapters import get_adapter
+
+    adapter = adapter or "ollama"
+    try:
+        llm = get_adapter(adapter, **({"model": model} if model else {}))
+    except ValueError as exc:
+        raise click.ClickException(str(exc)) from exc
+
+    compiler = Text2SPL(adapter=llm)
+    try:
+        spl_code = asyncio.run(compiler.compile(description, mode=mode))
+    except Exception as exc:
+        raise click.ClickException(f"Compilation failed: {exc}") from exc
+
+    if validate:
+        valid, message = Text2SPL.validate_output(spl_code)
+        if not valid:
+            if output:
+                Path(output).write_text(spl_code, encoding="utf-8")
+                click.echo(f"Written to {output} (with validation errors — review and fix)")
+            else:
+                click.echo(spl_code)
+            click.echo(f"Warning: {message}", err=True)
+            raise SystemExit(1)
+
+    if output:
+        Path(output).write_text(spl_code, encoding="utf-8")
+        click.echo(f"Written to {output}")
+    else:
+        click.echo(spl_code)
+
+
+# ------------------------------------------------------------------ #
+# spl3 validate                                                       #
+# ------------------------------------------------------------------ #
+
+@main.command("validate")
+@click.argument("spl_file")
+def cmd_validate(spl_file):
+    """Validate SPL syntax of SPL_FILE."""
+    from pathlib import Path
+    from spl.lexer import Lexer
+    from spl3.parser import SPL3Parser
+
+    path = Path(spl_file)
+    if not path.exists():
+        raise click.ClickException(f"File not found: {path}")
+    source = path.read_text(encoding="utf-8")
+    try:
+        tokens = Lexer(source).tokenize()
+        SPL3Parser(tokens).parse()
+        click.echo(f"OK: {path}")
+    except Exception as exc:
+        raise click.ClickException(f"Parse error: {exc}") from exc
+
+
+# ------------------------------------------------------------------ #
+# spl3 explain                                                        #
+# ------------------------------------------------------------------ #
+
+@main.command("explain")
+@click.argument("spl_file")
+def cmd_explain(spl_file):
+    """Show execution plan for SPL_FILE (no LLM call)."""
+    from pathlib import Path
+    from spl.lexer import Lexer
+    from spl.analyzer import Analyzer
+    from spl.optimizer import Optimizer
+    from spl.explain import explain_plans
+    from spl3.parser import SPL3Parser
+
+    path = Path(spl_file)
+    if not path.exists():
+        raise click.ClickException(f"File not found: {path}")
+    source = path.read_text(encoding="utf-8")
+    try:
+        tokens = Lexer(source).tokenize()
+        ast = SPL3Parser(tokens).parse()
+        analysis = Analyzer().analyze(ast)
+        plans = Optimizer().optimize(analysis)
+        click.echo(explain_plans(plans))
+    except click.ClickException:
+        raise
+    except Exception as exc:
+        raise click.ClickException(str(exc)) from exc
+
+
+# ------------------------------------------------------------------ #
 # spl3 describe                                                       #
 # ------------------------------------------------------------------ #
 
@@ -727,31 +870,52 @@ Write the specification now.
 
 
 @main.command("describe")
-@click.argument("spl_file")
+@click.argument("spl_path")
 @click.option("--adapter", default="ollama", show_default=True,
               help="LLM adapter to use for generation.")
 @click.option("--model", default=None, metavar="MODEL",
               help="Model override for the adapter.")
 @click.option("--spec-dir", default=None, metavar="DIR",
-              help="Directory to write the spec file (default: same directory as SPL_FILE).")
-def cmd_describe(spl_file, adapter, model, spec_dir):
-    """Generate a plain-English functional specification for SPL_FILE.
+              help="Directory to write the spec file (default: same dir as input).")
+def cmd_describe(spl_path, adapter, model, spec_dir):
+    """Generate a plain-English functional specification for a .spl file or folder.
 
     \b
-    Writes output to <filename>-spec.md alongside the .spl file by default.
-    Use --spec-dir to redirect the spec file to a different directory.
+    SPL_PATH can be:
+      - a single .spl file  → spec named <stem>-spec.md
+      - a folder            → all *.spl files in the folder are gathered and
+                              described together as one recipe unit;
+                              spec named <folder>-spec.md
 
     \b
     Examples:
-      spl3 describe self_refine.spl
-      spl3 describe cookbook/05_self_refine/self_refine.spl --spec-dir docs/specs
-      spl3 describe my_workflow.spl --adapter ollama --model gemma3
+      spl3 describe cookbook/05_self_refine/self_refine.spl
+      spl3 describe cookbook/63_parallel_code_review/
+      spl3 describe my_workflow.spl --adapter claude_cli --spec-dir docs/specs
     """
-    path = Path(spl_file)
+    path = Path(spl_path)
     if not path.exists():
-        raise click.ClickException(f"File not found: {path}")
+        raise click.ClickException(f"Path not found: {path}")
 
-    source = path.read_text(encoding="utf-8")
+    if path.is_dir():
+        spl_files = sorted(path.glob("*.spl"))
+        if not spl_files:
+            raise click.ClickException(f"No .spl files found in {path}")
+        # Concatenate all sources with file headers so the LLM sees the full recipe
+        parts = []
+        for f in spl_files:
+            parts.append(f"-- File: {f.name}\n" + f.read_text(encoding="utf-8"))
+        source = "\n\n".join(parts)
+        stem = path.resolve().name          # folder name → spec stem
+        spec_parent = path
+        click.echo(f"Describing {len(spl_files)} .spl file(s) in {path.name}/: "
+                   f"{', '.join(f.name for f in spl_files)}")
+    else:
+        source = path.read_text(encoding="utf-8")
+        stem = path.stem
+        spec_parent = path.parent
+        click.echo(f"Generating spec for {path.name} ...")
+
     prompt = _DESCRIBE_PROMPT.format(source=source)
 
     try:
@@ -759,25 +923,28 @@ def cmd_describe(spl_file, adapter, model, spec_dir):
     except ImportError:
         raise click.ClickException("spl-llm 2.0 not installed: pip install spl-llm>=2.0.0")
 
-    adapter_kwargs = {"model": model} if model else {}
-    llm = get_adapter(adapter, **adapter_kwargs)
-
-    click.echo(f"Generating spec for {path.name} ...")
+    llm = get_adapter(adapter, **{"model": model} if model else {})
     result = asyncio.run(llm.generate(prompt, **({"model": model} if model else {})))
-
     spec_text = result if isinstance(result, str) else getattr(result, "content", str(result))
 
-    stem = path.stem
     spec_filename = f"{stem}-spec.md"
     if spec_dir:
         out_dir = Path(spec_dir)
         out_dir.mkdir(parents=True, exist_ok=True)
         spec_path = out_dir / spec_filename
     else:
-        spec_path = path.parent / spec_filename
+        spec_path = spec_parent / spec_filename
 
     spec_path.write_text(spec_text, encoding="utf-8")
     click.echo(f"Spec written to: {spec_path}")
+
+
+# ------------------------------------------------------------------ #
+# spl3 splc                                                           #
+# ------------------------------------------------------------------ #
+
+from spl3.splc.cli import splc as _splc_command
+main.add_command(_splc_command, name="splc")
 
 
 if __name__ == "__main__":
