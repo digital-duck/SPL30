@@ -35,6 +35,7 @@ _DD_LLM_PROVIDERS: dict[str, str] = {
     "ollama":     "ollama",
     "openrouter": "openrouter",
     "claude_cli": "claude_cli",
+    "gemini_cli": "gemini_cli",
     "google":     "gemini",
 }
 
@@ -83,6 +84,7 @@ def _bootstrap() -> None:
     if not _dd_ok:
         for _name, _mod, _cls in [
             ("claude_cli", "spl.adapters.claude_cli", "ClaudeCLIAdapter"),
+            ("gemini_cli", "spl3.adapters.gemini_cli", "GeminiCLIAdapter"),
             ("openrouter", "spl.adapters.openrouter", "OpenRouterAdapter"),
             ("ollama",     "spl.adapters.ollama",     "OllamaAdapter"),
             ("anthropic",  "spl.adapters.anthropic",  "AnthropicAdapter"),
@@ -110,8 +112,9 @@ def _bootstrap() -> None:
 
     # 4. SPL30 new adapters
     for _name, _mod, _cls in [
-        ("liquid", "spl.adapters.liquid",  "LiquidAdapter"),
-        ("snap",   "spl.adapters.snap",    "SnapAdapter"),    # placeholder — Ubuntu 26.04
+        ("liquid",     "spl3.adapters.liquid",     "LiquidAdapter"),
+        ("snap",       "spl3.adapters.snap",       "SnapAdapter"),    # placeholder — Ubuntu 26.04
+        ("gemini_cli", "spl3.adapters.gemini_cli", "GeminiCLIAdapter"),
     ]:
         try:
             register_adapter(_name, getattr(_importlib.import_module(_mod), _cls))

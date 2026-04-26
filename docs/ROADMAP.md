@@ -1734,7 +1734,7 @@ This mirrors the `claude_cli` pattern exactly: same Gemini models, zero per-call
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| `GeminiCLIAdapter` (Python, `spl3`) | `[TODO]` | Mirror `ClaudeCLIAdapter` pattern: subprocess call to `gemini` CLI |
+| `GeminiCLIAdapter` (Python, `spl3`) | `[DONE]` | Mirror `ClaudeCLIAdapter` pattern: subprocess call to `gemini` CLI |
 | `gemini_cli` adapter (spl-go) | `[TODO]` | Port from Python |
 | `gemini_cli` adapter (spl-ts) | `[TODO]` | Node.js subprocess; browser fallback to `gemini` REST |
 | Cookbook smoke test | `[TODO]` | Run recipe 00 (`hello_world`) against `gemini_cli` |

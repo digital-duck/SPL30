@@ -153,6 +153,7 @@ against SPL30 via **NDD closure** (`spl3 run --adapter echo` as oracle, `diff` a
 | `deepseek` | DeepSeek API | `[DONE]` |
 | `qwen` | Qwen API | `[DONE]` |
 | `liquid` (LiquidAdapter) | LFM2-8B/24B + LFM-2.5 via Ollama or OpenRouter | `[DONE]` |
+| `gemini_cli` | Gemini CLI tool (zero marginal cost) | `[DONE]` |
 | `snap` (SnapAdapter) | Ubuntu AI Snap | `[TODO]` — awaits Ubuntu 26.04 GA |
 | Multi-modal base (`MultiModalMixin`) | Image / Audio / Video content parts | `[DONE]` |
 
