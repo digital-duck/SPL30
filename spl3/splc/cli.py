@@ -907,8 +907,8 @@ def cmd_describe(impl_path: Path, lang_label: str | None, adapter: str, model: s
     click.echo(f"Spec written to: {spec_path}")
     click.echo()
     click.echo("Reverse pipeline:")
-    click.echo(f"  spl3 text2spl --description \"<Section 0 from {spec_path.name}>\" --mode workflow")
-    click.echo(f"  spl3 splc compile <output.spl> --lang python/pocketflow")
+    click.echo(f"  spl3 text2spl --description {spec_path.name} --mode workflow -o output.spl")
+    click.echo(f"  spl3 splc compile output.spl --lang python/pocketflow")
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────

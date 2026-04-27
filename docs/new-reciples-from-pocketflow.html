@@ -1,0 +1,70 @@
+<pre> Here&apos;s my recommendation — mapped to what SPL currently lacks:
+                                                                                                                              
+  ---                                                                                                                         
+  <b>Tier 1 — Strong additions (fill clear gaps in SPL)</b>
+                                                                                                                              
+  ┌──────────────────────┬─────────────┬──────────────────────────────────────────────────────────────┐
+  │      PF Recipe       │  Category   │                       Why it fits SPL                        │                       
+  ├──────────────────────┼─────────────┼──────────────────────────────────────────────────────────────┤
+  │ [04] agentic-rag     │ retrieval   │ RAG is foundational — SPL has no retrieval recipe            │                       
+  ├──────────────────────┼─────────────┼──────────────────────────────────────────────────────────────┤
+  │ [40] rag             │ retrieval   │ Simpler RAG baseline to pair with agentic-rag                │                       
+  ├──────────────────────┼─────────────┼──────────────────────────────────────────────────────────────┤                       
+  │ [47] thinking        │ reasoning   │ Chain-of-thought / extended thinking — natural SPL primitive │                       
+  ├──────────────────────┼─────────────┼──────────────────────────────────────────────────────────────┤                       
+  │ [16] debate          │ reasoning   │ Multi-perspective reasoning — good NDD closure test          │
+  ├──────────────────────┼─────────────┼──────────────────────────────────────────────────────────────┤                       
+  │ [27] judge           │ reasoning   │ LLM-as-judge — directly useful for SPL benchmark scoring     │
+  ├──────────────────────┼─────────────┼──────────────────────────────────────────────────────────────┤                       
+  │ [46] text2sql        │ application │ TEXT→SQL is a classic modality gap in SPL                    │
+  ├──────────────────────┼─────────────┼──────────────────────────────────────────────────────────────┤                       
+  │ [51] tool-pdf-vision │ tool        │ TEXT+IMAGE→TEXT — bridges PF tools with SPL multimodal       │
+  ├──────────────────────┼─────────────┼──────────────────────────────────────────────────────────────┤                       
+  │ [32] mcp             │ tool        │ MCP integration — growing ecosystem, strategic fit           │
+  └──────────────────────┴─────────────┴──────────────────────────────────────────────────────────────┘                       
+                                                            
+  <b>Tier 2 — Good additions (enrich agentic/batch coverage)</b>                                                                     
+                                                            
+  ┌──────────────────────┬─────────────┬───────────────────────────────────────────────────────────────────────────────┐      
+  │      PF Recipe       │  Category   │                                Why it fits SPL                                │
+  ├──────────────────────┼─────────────┼───────────────────────────────────────────────────────────────────────────────┤
+  │ [02] agent           │ agentic     │ Baseline web-search agent — SPL has code pipeline but no general agent        │
+  ├──────────────────────┼─────────────┼───────────────────────────────────────────────────────────────────────────────┤
+  │ [44] supervisor      │ multi-agent │ Supervisor pattern — quality gate, useful for SPL pipeline                    │      
+  ├──────────────────────┼─────────────┼───────────────────────────────────────────────────────────────────────────────┤      
+  │ [38] parallel-batch  │ batch       │ Async parallel pattern — SPL has parallel code review but no general template │      
+  ├──────────────────────┼─────────────┼───────────────────────────────────────────────────────────────────────────────┤      
+  │ [13] code-generator  │ agentic     │ Complements SPL&apos;s existing code pipeline                                      │
+  ├──────────────────────┼─────────────┼───────────────────────────────────────────────────────────────────────────────┤      
+  │ [17] deep-research   │ application │ Multi-step research loop — good complex agentic test                          │
+  ├──────────────────────┼─────────────┼───────────────────────────────────────────────────────────────────────────────┤      
+  │ [50] tool-embeddings │ tool        │ Embeddings are foundational for RAG and search                                │
+  └──────────────────────┴─────────────┴───────────────────────────────────────────────────────────────────────────────┘      
+   
+  <b>Tier 3 — Optional / niche</b>                                                                                                   
+                                                            
+  ┌────────────────────────┬─────────────┬────────────────────────────────────────────────────┐
+  │       PF Recipe        │  Category   │                        Note                        │
+  ├────────────────────────┼─────────────┼────────────────────────────────────────────────────┤
+  │ [01] a2a               │ multi-agent │ A2A protocol — forward-looking but complex to port │
+  ├────────────────────────┼─────────────┼────────────────────────────────────────────────────┤
+  │ [45] tao               │ reasoning   │ Deep reasoning loop — interesting but slow         │                               
+  ├────────────────────────┼─────────────┼────────────────────────────────────────────────────┤                               
+  │ [43] structured-output │ application │ Useful but overlaps with existing SPL patterns     │                               
+  ├────────────────────────┼─────────────┼────────────────────────────────────────────────────┤                               
+  │ [35] newsletter        │ application │ Fun demo but narrow use case                       │
+  └────────────────────────┴─────────────┴────────────────────────────────────────────────────┘                               
+                                                            
+  ---                                                                                                                         
+  <b>Suggested first batch to port</b>: 04, 40, 47, 27, 46, 51, 32 — these 7 fill the biggest gaps (retrieval, reasoning/judging,
+  SQL, PDF vision, MCP) with minimal overlap to what SPL already has.                                                         
+                                                                     
+  Want me to start porting any of these into the SPL cookbook structure?                                                      
+                                                                                                                              
+<font color="#999999">✻</font> <font color="#999999">Worked for 35s</font>                    
+                                                                                                                              
+<span style="background-color:#373737"><font color="#505050">❯ </font></span><span style="background-color:#373737"><font color="#FFFFFF">I agree, please update /home/gong2/projects/digital-duck/SPL30/docs/new-reciples-from-pocketflow.md with above </font></span><span style="background-color:#373737">             </span>
+<span style="background-color:#373737"><font color="#FFFFFF">recommendations, we will use our pipeline to generate .spl scripts : (1) splc describe to generate -spec.md (2) text2spl </font></span><span style="background-color:#373737">     </span>
+<span style="background-color:#373737"><font color="#FFFFFF">using Section 0 descriptions to generate .spl, review/refine/test  (3) splc compile --target python/pocketflow (4) validate </font></span><span style="background-color:#373737">  </span>
+<span style="background-color:#373737"><font color="#FFFFFF">the target code .py (4) LLM evaluate and judge between original pocketflow recipe and generated .spl and .py recipes</font></span><span style="background-color:#373737">          </span>
+<font color="#999999">  ⎿  </font><font color="#FF6B80">You&apos;ve hit your limit · resets 8:50pm (America/New_York)</font>                        </pre>

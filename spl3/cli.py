@@ -696,7 +696,10 @@ def code_rag_stats(storage_dir):
 # ------------------------------------------------------------------ #
 
 @main.command("text2spl")
-@click.argument("description")
+@click.argument("description", required=False, default=None)
+@click.option("--description", "-d", "description_opt", default=None, metavar="TEXT_OR_FILE",
+              help="Natural language description, a file path, or a -spec.md file "
+                   "(Section 0 is extracted automatically).")
 @click.option("--adapter", default=None, metavar="NAME",
               help="Compiler adapter (default: ollama).")
 @click.option("--model", "-m", default=None, metavar="MODEL",
@@ -708,17 +711,55 @@ def code_rag_stats(storage_dir):
               help="Validate generated SPL code.")
 @click.option("--output", "-o", default=None, metavar="FILE",
               help="Write generated SPL to FILE.")
-def cmd_text2spl(description: str, adapter, model, mode, validate, output):
+def cmd_text2spl(description, description_opt, adapter, model, mode, validate, output):
     """Compile natural language DESCRIPTION into SPL 3.0 code.
+
+    DESCRIPTION may be:
+      - a literal string passed as a positional argument or via --description
+      - a path to a plain text / markdown file (full file used as description)
+      - a path to a *-spec.md file (Section 0 is extracted automatically)
 
     \b
     Examples:
       spl3 text2spl "summarize a document with a 2000 token budget"
+      spl3 text2spl --description flow-splc-python_pocketflow-spec.md --mode workflow -o agent.spl
       spl3 text2spl "build a review agent" --mode workflow -o review.spl
       spl3 text2spl "classify intent" --adapter ollama -m gemma3
     """
+    import re as _re
     from spl.text2spl import Text2SPL
     from spl.adapters import get_adapter
+
+    # Resolve description: --description option takes precedence over positional arg
+    raw = description_opt or description
+    if not raw:
+        raise click.UsageError(
+            "Provide a description as a positional argument or via --description."
+        )
+
+    # If it looks like a file path, read it
+    candidate = Path(raw)
+    if candidate.exists() and candidate.is_file():
+        content = candidate.read_text(encoding="utf-8")
+        # If it's a -spec.md, extract Section 0
+        if candidate.name.endswith("-spec.md") or candidate.suffix == ".md":
+            # Match "## 0. ..." up to the next "## " heading or end of file
+            m = _re.search(
+                r"^##\s*0\..*?\n(.*?)(?=^##\s|\Z)",
+                content,
+                _re.MULTILINE | _re.DOTALL,
+            )
+            if m:
+                section0 = m.group(1).strip()
+                click.echo(f"Extracted Section 0 from {candidate.name} "
+                           f"({len(section0)} chars)", err=True)
+                raw = section0
+            else:
+                click.echo(f"No 'Section 0' heading found in {candidate.name} — "
+                           "using full file content.", err=True)
+                raw = content.strip()
+        else:
+            raw = content.strip()
 
     adapter = adapter or "ollama"
     try:
@@ -728,7 +769,7 @@ def cmd_text2spl(description: str, adapter, model, mode, validate, output):
 
     compiler = Text2SPL(adapter=llm)
     try:
-        spl_code = asyncio.run(compiler.compile(description, mode=mode))
+        spl_code = asyncio.run(compiler.compile(raw, mode=mode))
     except Exception as exc:
         raise click.ClickException(f"Compilation failed: {exc}") from exc
 

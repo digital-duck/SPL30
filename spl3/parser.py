@@ -289,7 +289,7 @@ class SPL3Parser(SPL2Parser):
             # SET is a keyword token, not IDENTIFIER — accept as type annotation
             param_type = self._advance().value  # "set"
 
-        if self._check(TokenType.DEFAULT):
+        if self._check(TokenType.DEFAULT) or self._check(TokenType.ASSIGN):
             self._advance()
             default_value = self._parse_expression()
 
