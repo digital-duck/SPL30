@@ -792,6 +792,344 @@ def cmd_text2spl(description, description_opt, adapter, model, mode, validate, o
 
 
 # ------------------------------------------------------------------ #
+# spl3 text2mermaid                                                   #
+# ------------------------------------------------------------------ #
+
+@main.command("text2mermaid")
+@click.argument("description", required=False, default=None)
+@click.option("--description", "-d", "description_opt", default=None, metavar="TEXT_OR_FILE",
+              help="Natural language workflow description or file path.")
+@click.option("--adapter", default="ollama", show_default=True, metavar="NAME",
+              help="LLM adapter to use.")
+@click.option("--model", "-m", default=None, metavar="MODEL",
+              help="Model override for the adapter.")
+@click.option("--style", default="flowchart", show_default=True,
+              type=click.Choice(["flowchart", "graph", "sequence"]),
+              help="Mermaid diagram style.")
+@click.option("--output", "-o", default=None, metavar="FILE",
+              help="Write generated Mermaid to FILE.")
+@click.option("--validate/--no-validate", default=True, show_default=True,
+              help="Validate generated Mermaid syntax.")
+@click.option("--preview", is_flag=True, default=False,
+              help="Open diagram in browser preview.")
+def cmd_text2mermaid(description, description_opt, adapter, model, style, output, validate, preview):
+    """Generate Mermaid flowchart from natural language workflow description.
+
+    This creates a visual representation of the workflow that can be reviewed
+    and edited before converting to SPL code.
+
+    \b
+    Examples:
+      spl3 text2mermaid "build a review agent that refines text until quality > 0.8"
+      spl3 text2mermaid --description "research workflow" -o research.mmd
+      spl3 text2mermaid "parallel code review" --style flowchart --preview
+    """
+    import re as _re
+    from pathlib import Path
+
+    try:
+        from spl.adapters import get_adapter
+    except ImportError:
+        raise click.ClickException("spl adapters not available")
+
+    # --description option takes precedence over positional arg
+    raw = description_opt or description
+    if not raw:
+        raise click.ClickException("DESCRIPTION is required (positional arg or --description)")
+
+    # Check if it's a file path
+    if Path(raw).exists():
+        desc_text = Path(raw).read_text(encoding="utf-8")
+    else:
+        desc_text = raw
+
+    # Generate Mermaid diagram
+    llm = get_adapter(adapter, **{"model": model} if model else {})
+
+    prompt = f"""Convert this workflow description into a Mermaid {style} diagram.
+
+Workflow Description:
+{desc_text}
+
+Generate a clear, well-structured Mermaid diagram that shows:
+- Process steps as rectangular nodes
+- Decision points as diamond nodes
+- Loops and iterations with feedback edges
+- Parallel processes as separate branches
+- Clear flow direction with arrows
+
+Use descriptive node labels and follow Mermaid syntax exactly.
+Output only the Mermaid diagram code, no explanations.
+
+Example format:
+```mermaid
+{style} TD
+    A[Start] --> B[Process Input]
+    B --> C{{Decision}}
+    C -->|Yes| D[Action]
+    C -->|No| E[Alternative]
+    D --> F[End]
+    E --> F
+```
+"""
+
+    result = asyncio.run(llm.generate(prompt, **({"model": model} if model else {})))
+    mermaid_text = result if isinstance(result, str) else getattr(result, "content", str(result))
+
+    # Extract mermaid code from markdown if present
+    if "```mermaid" in mermaid_text:
+        mermaid_match = _re.search(r"```mermaid\s*\n(.*?)\n```", mermaid_text, _re.DOTALL)
+        if mermaid_match:
+            mermaid_text = mermaid_match.group(1).strip()
+
+    # Basic validation
+    if validate:
+        if not any(keyword in mermaid_text for keyword in ["flowchart", "graph", "sequenceDiagram"]):
+            click.echo("Warning: Generated text may not be valid Mermaid syntax", err=True)
+
+    # Output
+    if output:
+        Path(output).write_text(mermaid_text, encoding="utf-8")
+        click.echo(f"Mermaid diagram written to: {output}")
+        if preview:
+            import webbrowser
+            # Create temporary HTML file for preview
+            html_content = f"""<!DOCTYPE html>
+<html>
+<head>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+    <div class="mermaid">
+{mermaid_text}
+    </div>
+    <script>mermaid.initialize({{startOnLoad:true}});</script>
+</body>
+</html>"""
+            preview_path = Path(output).with_suffix('.html')
+            preview_path.write_text(html_content, encoding="utf-8")
+            webbrowser.open(f"file://{preview_path.absolute()}")
+            click.echo(f"Preview opened in browser: {preview_path}")
+    else:
+        click.echo(mermaid_text)
+
+
+# ------------------------------------------------------------------ #
+# spl3 mermaid2spl                                                    #
+# ------------------------------------------------------------------ #
+
+@main.command("mermaid2spl")
+@click.argument("mermaid_file")
+@click.option("--output", "-o", default=None, metavar="FILE",
+              help="Write generated SPL to FILE.")
+@click.option("--validate/--no-validate", default=True, show_default=True,
+              help="Validate generated SPL syntax.")
+@click.option("--template", default="workflow", show_default=True,
+              type=click.Choice(["workflow", "function"]),
+              help="Base SPL template type.")
+@click.option("--pattern-hints", default=None, metavar="HINTS",
+              help="Comma-separated hints for SPL patterns (e.g., 'linear,parallel').")
+def cmd_mermaid2spl(mermaid_file, output, validate, template, pattern_hints):
+    """Generate SPL workflow from Mermaid flowchart diagram.
+
+    Converts a Mermaid flowchart into executable SPL code, mapping visual
+    elements to SPL constructs like GENERATE, EVALUATE, WHILE, and CALL PARALLEL.
+
+    \b
+    Examples:
+      spl3 mermaid2spl workflow.mmd -o workflow.spl
+      spl3 mermaid2spl diagram.mmd --template function --validate
+      spl3 mermaid2spl review.mmd --pattern-hints "iterative,quality-gate"
+    """
+    import re as _re
+    from pathlib import Path
+
+    # Read Mermaid file
+    if not Path(mermaid_file).exists():
+        raise click.ClickException(f"Mermaid file not found: {mermaid_file}")
+
+    mermaid_content = Path(mermaid_file).read_text(encoding="utf-8")
+
+    # Basic Mermaid parsing - extract nodes and connections
+    nodes = {}
+    edges = []
+
+    # Parse flowchart nodes: A[Label] or A{Decision} or A(Process)
+    node_pattern = r'(\w+)(?:\[(.*?)\]|\{(.*?)\}|\((.*?)\))'
+    for match in _re.finditer(node_pattern, mermaid_content):
+        node_id = match.group(1)
+        label = match.group(2) or match.group(3) or match.group(4) or node_id
+
+        # Determine node type from syntax
+        if match.group(3):  # {label} = decision
+            node_type = "decision"
+        elif any(keyword in label.lower() for keyword in ["start", "begin"]):
+            node_type = "start"
+        elif any(keyword in label.lower() for keyword in ["end", "finish", "return"]):
+            node_type = "end"
+        else:
+            node_type = "process"
+
+        nodes[node_id] = {"label": label, "type": node_type}
+
+    # Parse edges: A --> B or A -->|label| B
+    edge_pattern = r'(\w+)\s*(?:-->|->)\s*(?:\|([^|]*)\|\s*)?(\w+)'
+    for match in _re.finditer(edge_pattern, mermaid_content):
+        from_node = match.group(1)
+        edge_label = match.group(2)
+        to_node = match.group(3)
+        edges.append({"from": from_node, "to": to_node, "label": edge_label})
+
+    # Generate SPL based on structure
+    workflow_name = Path(mermaid_file).stem.replace("-", "_")
+
+    # Detect patterns
+    has_loops = any(
+        any(e2["from"] == edge["to"] and e2["to"] == edge["from"] for e2 in edges)
+        for edge in edges
+    )
+
+    has_decisions = any(node["type"] == "decision" for node in nodes.values())
+    has_parallel = len([n for n in nodes.values() if n["type"] == "process"]) > 3
+
+    # Build SPL
+    spl_lines = []
+
+    if template == "workflow":
+        spl_lines.extend([
+            f"WORKFLOW {workflow_name}",
+            "  INPUT @input TEXT",
+            "  OUTPUT @result TEXT",
+            "DO"
+        ])
+
+        # Add variables
+        for node_id, node in nodes.items():
+            if node["type"] == "process":
+                var_name = _re.sub(r'\W+', '_', node["label"].lower())
+                spl_lines.append(f"  @{var_name} := '';")
+
+        # Add main logic
+        process_nodes = [n for n in nodes.values() if n["type"] == "process"]
+        decision_nodes = [n for n in nodes.values() if n["type"] == "decision"]
+
+        if has_loops and decision_nodes:
+            # Iterative pattern
+            spl_lines.extend([
+                "  @iteration := 0;",
+                "  @max_iterations := 3;",
+                "",
+                "  WHILE @iteration < @max_iterations DO",
+                "    DO"
+            ])
+
+            for node in process_nodes[:2]:  # Main processes
+                var_name = _re.sub(r'\W+', '_', node["label"].lower())
+                func_name = _re.sub(r'\W+', '_', node["label"].lower()).strip('_')
+                # Avoid reserved keywords
+                if func_name in ['input', 'output', 'result', 'return', 'end', 'do', 'while', 'evaluate', 'when', 'then', 'else']:
+                    func_name = f"process_{func_name}"
+                spl_lines.append(f"      GENERATE {func_name}(@input) INTO @{var_name};")
+
+            # Add decision logic
+            if decision_nodes:
+                decision = decision_nodes[0]
+                spl_lines.extend([
+                    f"      EVALUATE @{var_name}",
+                    f"        WHEN contains('complete') THEN",
+                    f"          RETURN @{var_name} WITH status = 'complete';",
+                    f"        ELSE",
+                    f"          @iteration := @iteration + 1;",
+                    "      END;"
+                ])
+
+            spl_lines.extend([
+                "    END;",
+                "  END;",
+            ])
+
+        elif has_decisions:
+            # Conditional pattern
+            for node in process_nodes:
+                var_name = _re.sub(r'\W+', '_', node["label"].lower())
+                func_name = _re.sub(r'\W+', '_', node["label"].lower()).strip('_')
+                # Avoid reserved keywords
+                if func_name in ['input', 'output', 'result', 'return', 'end', 'do', 'while', 'evaluate', 'when', 'then', 'else']:
+                    func_name = f"process_{func_name}"
+                spl_lines.append(f"  GENERATE {func_name}(@input) INTO @{var_name};")
+
+            if decision_nodes:
+                decision = decision_nodes[0]
+                spl_lines.extend([
+                    f"  EVALUATE @{var_name}",
+                    f"    WHEN contains('condition') THEN",
+                    f"      @result := 'path_a';",
+                    f"    ELSE",
+                    f"      @result := 'path_b';",
+                    "  END;"
+                ])
+
+        elif has_parallel:
+            # Parallel pattern
+            spl_lines.append("  CALL PARALLEL")
+            for i, node in enumerate(process_nodes[:3]):  # Limit to 3 parallel
+                var_name = _re.sub(r'\W+', '_', node["label"].lower())
+                func_name = _re.sub(r'\W+', '_', node["label"].lower()).strip('_')
+                # Avoid reserved keywords
+                if func_name in ['input', 'output', 'result', 'return', 'end', 'do', 'while', 'evaluate', 'when', 'then', 'else']:
+                    func_name = f"process_{func_name}"
+                comma = "," if i < min(2, len(process_nodes) - 1) else ""
+                spl_lines.append(f"    {func_name}(@input) INTO @{var_name}{comma}")
+            spl_lines.append("  END")
+
+        else:
+            # Linear pattern
+            for node in process_nodes:
+                var_name = _re.sub(r'\W+', '_', node["label"].lower())
+                func_name = _re.sub(r'\W+', '_', node["label"].lower()).strip('_')
+                # Avoid reserved keywords
+                if func_name in ['input', 'output', 'result', 'return', 'end', 'do', 'while', 'evaluate', 'when', 'then', 'else']:
+                    func_name = f"process_{func_name}"
+                spl_lines.append(f"  GENERATE {func_name}(@input) INTO @{var_name};")
+
+        spl_lines.extend([
+            "  RETURN @result;",
+            "END;"
+        ])
+
+    else:  # function template
+        func_name = workflow_name
+        spl_lines.extend([
+            f"CREATE FUNCTION {func_name}(input TEXT) RETURNS TEXT AS $$",
+            f"Process the input through {workflow_name} workflow.",
+            "$$;"
+        ])
+
+    spl_code = "\n".join(spl_lines)
+
+    # Basic validation
+    if validate:
+        try:
+            # Simple syntax check
+            if not any(keyword in spl_code for keyword in ["WORKFLOW", "CREATE FUNCTION"]):
+                click.echo("Warning: Generated code may not be valid SPL", err=True)
+        except Exception as e:
+            click.echo(f"Validation warning: {e}", err=True)
+
+    # Output
+    if output:
+        Path(output).write_text(spl_code, encoding="utf-8")
+        click.echo(f"SPL code written to: {output}")
+
+        # Also generate .mmd file for reference
+        mmd_output = Path(output).with_suffix('.mmd')
+        mmd_output.write_text(mermaid_content, encoding="utf-8")
+        click.echo(f"Mermaid reference saved to: {mmd_output}")
+    else:
+        click.echo(spl_code)
+
+
+# ------------------------------------------------------------------ #
 # spl3 validate                                                       #
 # ------------------------------------------------------------------ #
 

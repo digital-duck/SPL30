@@ -1,0 +1,18 @@
+WORKFLOW review
+  INPUT @input TEXT
+  OUTPUT @result TEXT
+DO
+  @process_input := '';
+  @refine_content := '';
+  @iterate_and_refine := '';
+  GENERATE process_input(@input) INTO @process_input;
+  GENERATE refine_content(@input) INTO @refine_content;
+  GENERATE iterate_and_refine(@input) INTO @iterate_and_refine;
+  EVALUATE @iterate_and_refine
+    WHEN contains('condition') THEN
+      @result := 'path_a';
+    ELSE
+      @result := 'path_b';
+  END;
+  RETURN @result;
+END;

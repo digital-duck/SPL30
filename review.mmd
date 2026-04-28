@@ -1,0 +1,8 @@
+flowchart TD
+    A[Start] --> B[Process Input]
+    B --> C{Quality Score Check}
+    C -->|Score > 0.8| D[Refine Content]
+    C -->|Score <= 0.8| E[Iterate and Refine]
+    F --> G[End]
+    E -->|Repeat| F
+    D --> G
