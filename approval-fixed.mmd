@@ -1,0 +1,7 @@
+flowchart TD
+    A[Start] --> B[Process Request]
+    B --> C{{Check Quality}}
+    C -->|Pass| D[Approve Request]
+    C -->|Fail| E[Reject Request]
+    D --> F[End]
+    E --> F[End]

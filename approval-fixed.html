@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Approval Fixed - Mermaid Workflow</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .header { border-bottom: 2px solid #eee; margin-bottom: 20px; padding-bottom: 10px; }
+        .mermaid { text-align: center; margin: 20px 0; min-height: 200px; }
+        .footer { margin-top: 20px; padding-top: 10px; border-top: 1px solid #eee; color: #666; font-size: 0.9em; }
+        .raw-code { background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 4px; padding: 15px; margin: 20px 0; font-family: 'Courier New', monospace; white-space: pre-wrap; }
+        .error-info { background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 4px; padding: 15px; margin: 20px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Approval Fixed Workflow</h1>
+            <p><strong>Generated:</strong> approval-fixed.mmd | <strong>Style:</strong> flowchart | <strong>Adapter:</strong> ollama</p>
+        </div>
+        <div id="mermaid-container" class="mermaid">
+flowchart TD
+    A[Start] --> B[Process]
+    B --> C{Check Quality}
+    C -->|Yes| D[Approve]
+    C -->|No| E[Reject]
+    D --> F[End]
+    E --> F[End]
+        </div>
+        <div id="error-container" class="error-info" style="display: none;">
+            <h3>⚠️ Mermaid Syntax Error</h3>
+            <p>The diagram couldn't be rendered. This often happens due to:</p>
+            <ul>
+                <li>Invalid node naming (spaces without brackets)</li>
+                <li>Incorrect edge syntax</li>
+                <li>Circular references</li>
+            </ul>
+            <p><strong>Generated Code:</strong></p>
+            <div class="raw-code">flowchart TD
+    A[Start] --> B[Process]
+    B --> C{Check Quality}
+    C -->|Yes| D[Approve]
+    C -->|No| E[Reject]
+    D --> F[End]
+    E --> F[End]</div>
+            <p>Please edit the <code>approval-fixed.mmd</code> file to fix syntax issues.</p>
+        </div>
+        <div class="footer">
+            <p><strong>Next Steps:</strong></p>
+            <ol>
+                <li>Review the workflow diagram above</li>
+                <li>If syntax errors, edit approval-fixed.mmd to fix issues</li>
+                <li>Generate SPL: <code>spl3 mermaid2spl approval-fixed.mmd -o approval-fixed.spl</code></li>
+                <li>Validate: <code>spl3 validate approval-fixed.spl</code></li>
+            </ol>
+        </div>
+    </div>
+    <script>
+        mermaid.initialize({
+            startOnLoad: true,
+            theme: 'default',
+            securityLevel: 'loose',
+            errorLevel: 'warn'
+        });
+
+        // Error handling
+        window.addEventListener('error', function(e) {
+            if (e.message && e.message.toLowerCase().includes('mermaid')) {
+                document.getElementById('mermaid-container').style.display = 'none';
+                document.getElementById('error-container').style.display = 'block';
+            }
+        });
+
+        // Check for syntax errors after render
+        setTimeout(function() {
+            const container = document.getElementById('mermaid-container');
+            if (container && (container.innerHTML.includes('Syntax error') || container.innerHTML.includes('Parse error'))) {
+                container.style.display = 'none';
+                document.getElementById('error-container').style.display = 'block';
+            }
+        }, 2000);
+    </script>
+</body>
+</html>
