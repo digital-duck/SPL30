@@ -1,7 +1,7 @@
 """Gemini CLI adapter for SPL 3.0.
 
 Wraps the `gemini` command-line tool for zero-marginal-cost development.
-Implementation based on: @../SPL.py/docs/DEV/add-gemini_cli-adapter.md
+Implementation based on: @../SPL/docs/DEV/add-gemini_cli-adapter.md
 """
 
 from __future__ import annotations

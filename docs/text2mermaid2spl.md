@@ -2,8 +2,8 @@
 
 **Status:** ✅ **IMPLEMENTED & PRODUCTION READY**
 **Date:** 2026-04-28
-**Implementation:** `/home/gong2/projects/digital-duck/SPL.py/spl3/cli.py`
-**Commands:** `spl3 text2mermaid`, `spl3 mermaid2spl`
+**Implementation:** `/home/gong2/projects/digital-duck/SPL/spl3/cli.py`
+**Commands:** `spl3 text2mmd`, `spl3 mmd2spl`
 **Author:** SPL Team
 
 ## Overview
@@ -26,12 +26,12 @@ Current SPL generation suffers from **"no one can guess right"** semantics:
 ```
 Natural Language → Visual IR (Mermaid) → Declarative IR (SPL) → Imperative Code
                  ↑                     ↑                      ↑ 
-           text2mermaid        mermaid2spl                   splc
+           text2mmd        mmd2spl                   splc
 ```
 
-### Step 1: `text2mermaid` - Intent Visualization
+### Step 1: `text2mmd` - Intent Visualization
 ```bash
-spl3 text2mermaid "build a review agent that drafts, critiques, and refines text until quality > 0.8"
+spl3 text2mmd "build a review agent that drafts, critiques, and refines text until quality > 0.8"
 # → review-workflow.mmd
 ```
 
@@ -50,9 +50,9 @@ User visually inspects and refines the diagram:
 - ✅ **Stakeholder approval**: Share diagrams with non-technical teams
 - ✅ **Collaborative design**: Product owners can participate
 
-### Step 3: `mermaid2spl` - Code Generation
+### Step 3: `mmd2spl` - Code Generation
 ```bash
-spl3 mermaid2spl review-workflow.mmd -o review.spl
+spl3 mmd2spl review-workflow.mmd -o review.spl
 ```
 
 **Output:** Executable SPL with correct structure matching approved visual design.
@@ -88,12 +88,12 @@ spl3 mermaid2spl review-workflow.mmd -o review.spl
 
 The pipeline uses **different engines** for each transformation step, optimized for their respective strengths:
 
-**🤖 text2mermaid: LLM-Powered Intent Interpretation**
+**🤖 text2mmd: LLM-Powered Intent Interpretation**
 - **Engine**: LLM through SPL adapter system (ollama, claude_cli, gemini_cli, etc.)
 - **Rationale**: Natural language has infinite variations and ambiguity - LLMs excel at interpreting intent and mapping to visual structures
 - **Process**: Structured prompt engineering with Mermaid syntax constraints
 
-**⚙️ mermaid2spl: Rule-Based Structure Parsing**
+**⚙️ mmd2spl: Rule-Based Structure Parsing**
 - **Engine**: Deterministic regex parsing and pattern matching
 - **Rationale**: Mermaid diagrams have formal syntax - deterministic parsing ensures reliable, predictable code generation
 - **Process**: Parse visual elements → detect patterns → generate SPL constructs
@@ -103,7 +103,7 @@ The pipeline uses **different engines** for each transformation step, optimized 
 - **Workflow**: AI interprets intent → visual diagram → human review/edit → deterministic code generation
 - **Result**: **Semantic reliability** through human oversight + **structural consistency** through rule-based generation
 
-### text2mermaid Command (LLM-Based)
+### text2mmd Command (LLM-Based)
 
 **Input:** Natural language workflow description
 **Output:** Mermaid flowchart (.mmd file)
@@ -139,7 +139,7 @@ result = asyncio.run(llm.generate(prompt))
 - "conditional logic" → decision diamond nodes → SPL `EVALUATE`
 - "call API/process/workflow" → specific node patterns → SPL `CALL`/`GENERATE`
 
-### mermaid2spl Command (Rule-Based)
+### mmd2spl Command (Rule-Based)
 
 **Input:** Mermaid flowchart (.mmd file)
 **Output:** SPL workflow (.spl file)
@@ -214,7 +214,7 @@ Current `text2spl` suffers from **"no one can guess right"** semantics because n
 
 ### **Natural Language → SPL Construct Mapping**
 
-By making `text2mermaid` **SPL-aware**, we constrain the LLM to generate Mermaid patterns that map deterministically to SPL constructs:
+By making `text2mmd` **SPL-aware**, we constrain the LLM to generate Mermaid patterns that map deterministically to SPL constructs:
 
 #### **Core SPL Constructs → Natural Language Patterns**
 
@@ -230,7 +230,7 @@ By making `text2mermaid` **SPL-aware**, we constrain the LLM to generate Mermaid
 
 #### **Enhanced Prompt Engineering**
 
-The text2mermaid LLM prompt should include **SPL grammar hints**:
+The text2mmd LLM prompt should include **SPL grammar hints**:
 
 ```python
 prompt = f"""Convert this workflow description into a Mermaid flowchart diagram that maps cleanly to SPL constructs.
@@ -307,9 +307,9 @@ END;
 
 **Template-Based Constraint Generation:**
 ```bash
-spl3 text2mermaid "description" --spl-pattern iterative --template quality-gate
-spl3 text2mermaid "description" --spl-pattern parallel --template map-reduce
-spl3 text2mermaid "description" --spl-pattern conditional --template approval-flow
+spl3 text2mmd "description" --spl-pattern iterative --template quality-gate
+spl3 text2mmd "description" --spl-pattern parallel --template map-reduce
+spl3 text2mmd "description" --spl-pattern conditional --template approval-flow
 ```
 
 **Domain-Specific Vocabularies:**
@@ -322,10 +322,10 @@ spl3 text2mermaid "description" --spl-pattern conditional --template approval-fl
 
 ## Command Interface Specification
 
-### text2mermaid
+### text2mmd
 
 ```bash
-spl3 text2mermaid "<description>" [OPTIONS]
+spl3 text2mmd "<description>" [OPTIONS]
 
 Options:
   --output FILE, -o FILE    Write Mermaid to file (default: auto-generated in $HOME/.spl/mermaid)
@@ -341,12 +341,12 @@ Options:
   --validate / --no-validate  Validate Mermaid syntax
 ```
 
-**Note**: By default, text2mermaid generates all formats (.mmd, .md, .html, .png) and opens browser preview. Use `--no-defaults` to disable this behavior and generate only the .mmd file.
+**Note**: By default, text2mmd generates all formats (.mmd, .md, .html, .png) and opens browser preview. Use `--no-defaults` to disable this behavior and generate only the .mmd file.
 
-### mermaid2spl
+### mmd2spl
 
 ```bash
-spl3 mermaid2spl <file.mmd> [OPTIONS]
+spl3 mmd2spl <file.mmd> [OPTIONS]
 
 Options:
   --output FILE, -o FILE    Write SPL to file (default: stdout)
@@ -363,9 +363,9 @@ Options:
 spl3 text2spl "description" -o workflow.spl
 
 # Enhanced: Visual checkpoint
-spl3 text2mermaid "description" -o workflow.mmd
+spl3 text2mmd "description" -o workflow.mmd
 # [Human edits workflow.mmd]
-spl3 mermaid2spl workflow.mmd -o workflow.spl
+spl3 mmd2spl workflow.mmd -o workflow.spl
 ```
 
 ### Round-Trip Validation Enhancement
@@ -376,7 +376,7 @@ spl3 text2spl description.md → regenerated.spl
 
 # Enhanced: SPL → visual → SPL
 spl3 spl2mermaid workflow.spl → workflow.mmd
-spl3 mermaid2spl workflow.mmd → regenerated.spl
+spl3 mmd2spl workflow.mmd → regenerated.spl
 ```
 
 ## Expected Challenges & Solutions
@@ -437,11 +437,11 @@ spl3 mermaid2spl workflow.mmd → regenerated.spl
 
 ### ✅ **COMPLETED & WORKING**
 
-**Implementation Location:** `/home/gong2/projects/digital-duck/SPL.py/spl3/cli.py`
+**Implementation Location:** `/home/gong2/projects/digital-duck/SPL/spl3/cli.py`
 
 Both commands are fully implemented and integrated into the SPL 3.0 CLI:
 
-#### **`spl3 text2mermaid`** - Lines ~1130-1200
+#### **`spl3 text2mmd`** - Lines ~1130-1200
 - ✅ **Natural language → Mermaid conversion**
 - ✅ **LLM integration** with configurable adapters
 - ✅ **Multiple diagram styles** (flowchart, graph, sequence)
@@ -449,7 +449,7 @@ Both commands are fully implemented and integrated into the SPL 3.0 CLI:
 - ✅ **Mermaid syntax validation**
 - ✅ **Full CLI integration with help text**
 
-#### **`spl3 mermaid2spl`** - Lines ~1200-1320
+#### **`spl3 mmd2spl`** - Lines ~1200-1320
 - ✅ **Mermaid → SPL code generation**
 - ✅ **Pattern recognition** (linear, iterative, parallel, conditional)
 - ✅ **Automatic variable and function generation**
@@ -460,8 +460,8 @@ Both commands are fully implemented and integrated into the SPL 3.0 CLI:
 ### **Testing Results**
 ```bash
 # Both commands tested and working:
-$ spl3 text2mermaid "build review agent" -o test.mmd    # ✅ Success
-$ spl3 mermaid2spl test.mmd -o test.spl                 # ✅ Success
+$ spl3 text2mmd "build review agent" -o test.mmd    # ✅ Success
+$ spl3 mmd2spl test.mmd -o test.spl                 # ✅ Success
 $ spl3 validate test.spl                                # ✅ Passes validation
 ```
 
@@ -492,39 +492,39 @@ The visual IR layer becomes the **missing link** between human intent and machin
 spl3 --help | grep mermaid
 
 # Basic workflow
-spl3 text2mermaid "your workflow description" -o workflow.mmd
+spl3 text2mmd "your workflow description" -o workflow.mmd
 # [Edit workflow.mmd visually]
-spl3 mermaid2spl workflow.mmd -o workflow.spl
+spl3 mmd2spl workflow.mmd -o workflow.spl
 spl3 validate workflow.spl
 spl3 run workflow.spl --adapter claude_cli
 ```
 
 ### **Command Help**
 ```bash
-spl3 text2mermaid --help    # Full options for text→mermaid
-spl3 mermaid2spl --help     # Full options for mermaid→SPL
+spl3 text2mmd --help    # Full options for text→mermaid
+spl3 mmd2spl --help     # Full options for mermaid→SPL
 ```
 
 ### **Example Usage**
 ```bash
 # Quick start - generates ALL formats by default (mmd, md, html, png) + preview
-spl3 text2mermaid "data processing workflow with quality checks"
+spl3 text2mmd "data processing workflow with quality checks"
 
 # All formats are included by default now!
-spl3 text2mermaid "user onboarding flow" -o onboarding.mmd
+spl3 text2mmd "user onboarding flow" -o onboarding.mmd
 
 # Custom output directory for project organization
-spl3 text2mermaid "api integration workflow" --out-dir ./docs/workflows
+spl3 text2mmd "api integration workflow" --out-dir ./docs/workflows
 
 # Minimal output for scripting (no preview/extra formats)
-spl3 text2mermaid "simple approval process" --no-defaults -o simple.mmd
+spl3 text2mmd "simple approval process" --no-defaults -o simple.mmd
 
 # Generate for SPL development with conversion
-spl3 text2mermaid "iterative review process" --out-dir ./spl-workflows
-spl3 mermaid2spl ./spl-workflows/iterative_review_process_*.mmd -o review.spl
+spl3 text2mmd "iterative review process" --out-dir ./spl-workflows
+spl3 mmd2spl ./spl-workflows/iterative_review_process_*.mmd -o review.spl
 
 # Use different LLM adapters
-spl3 text2mermaid "cloud deployment pipeline" --adapter claude_cli --model claude-3-sonnet
+spl3 text2mmd "cloud deployment pipeline" --adapter claude_cli --model claude-3-sonnet
 ```
 
 ---
@@ -540,42 +540,42 @@ Run these commands to verify the text→visual→code pipeline:
 cd /home/gong2/projects/digital-duck/SPL30
 
 # Test 1: Simple linear workflow (basic)
-spl3 text2mermaid "simple data processing workflow" -o test-linear.mmd
-spl3 mermaid2spl test-linear.mmd -o test-linear.spl
+spl3 text2mmd "simple data processing workflow" -o test-linear.mmd
+spl3 mmd2spl test-linear.mmd -o test-linear.spl
 spl3 validate test-linear.spl
 
 # Test 2: Iterative refinement workflow (with VS Code format)
-spl3 text2mermaid "iterative review agent that refines content until quality score > 0.8" --save-markdown -o test-iterative.mmd
-spl3 mermaid2spl test-iterative.mmd -o test-iterative.spl
+spl3 text2mmd "iterative review agent that refines content until quality score > 0.8" --save-markdown -o test-iterative.mmd
+spl3 mmd2spl test-iterative.mmd -o test-iterative.spl
 spl3 validate test-iterative.spl
 
 # Test 3: Parallel processing workflow (with browser preview)
-spl3 text2mermaid "parallel code analysis with multiple checks running simultaneously" --preview -o test-parallel.mmd
-spl3 mermaid2spl test-parallel.mmd -o test-parallel.spl
+spl3 text2mmd "parallel code analysis with multiple checks running simultaneously" --preview -o test-parallel.mmd
+spl3 mmd2spl test-parallel.mmd -o test-parallel.spl
 spl3 validate test-parallel.spl
 
 # Test 4: Conditional branching workflow (all formats for collaboration)
-spl3 text2mermaid "content moderation that routes to human review if confidence is low" --save-html --save-markdown -o test-conditional.mmd
-spl3 mermaid2spl test-conditional.mmd -o test-conditional.spl
+spl3 text2mmd "content moderation that routes to human review if confidence is low" --save-html --save-markdown -o test-conditional.mmd
+spl3 mmd2spl test-conditional.mmd -o test-conditional.spl
 spl3 validate test-conditional.spl
 ```
 
 ### **Expected Test Results**
 
 All tests should show:
-- ✅ **text2mermaid**: `Mermaid diagram written to: <file>.mmd`
+- ✅ **text2mmd**: `Mermaid diagram written to: <file>.mmd`
 - ✅ **Additional formats** (when requested):
   - `Additional formats generated:`
   - `- Markdown (VS Code): <file>.md`
   - `- HTML (Browser): <file>.html`
   - `- Preview opened in browser: <file>.html`
-- ✅ **mermaid2spl**: `SPL code written to: <file>.spl`
+- ✅ **mmd2spl**: `SPL code written to: <file>.spl`
 - ✅ **validate**: `OK: <file>.spl`
 
 ### **Verification Checklist**
 
 - [ ] Both commands appear in `spl3 --help | grep mermaid`
-- [ ] text2mermaid connects to local Ollama (INFO message shows HTTP request)
+- [ ] text2mmd connects to local Ollama (INFO message shows HTTP request)
 - [ ] Generated .mmd files contain valid Mermaid flowchart syntax
 - [ ] Generated .spl files use proper function names (no quotes, no reserved keywords)
 - [ ] All generated SPL files pass validation
@@ -583,11 +583,11 @@ All tests should show:
 
 ### **Troubleshooting**
 
-**If text2mermaid fails:**
+**If text2mmd fails:**
 - Check Ollama is running: `curl http://localhost:11434/v1/models`
 - Verify model availability: `ollama list`
 
-**If mermaid2spl generates invalid SPL:**
+**If mmd2spl generates invalid SPL:**
 - Check function names don't use reserved keywords
 - Verify Mermaid syntax is valid before conversion
 
@@ -600,16 +600,16 @@ All tests should show:
 Test with custom options:
 ```bash
 # Test different adapters
-spl3 text2mermaid "test workflow" --adapter claude_cli -o test-claude.mmd
+spl3 text2mmd "test workflow" --adapter claude_cli -o test-claude.mmd
 
 # Test different diagram styles
-spl3 text2mermaid "sequence workflow" --style sequence -o test-sequence.mmd
+spl3 text2mmd "sequence workflow" --style sequence -o test-sequence.mmd
 
 # Test function template
-spl3 mermaid2spl test-linear.mmd --template function -o test-function.spl
+spl3 mmd2spl test-linear.mmd --template function -o test-function.spl
 
 # Test with pattern hints
-spl3 mermaid2spl test-parallel.mmd --pattern-hints "parallel,quality-gate" -o test-hints.spl
+spl3 mmd2spl test-parallel.mmd --pattern-hints "parallel,quality-gate" -o test-hints.spl
 ```
 
 ### **Integration Test**
@@ -617,12 +617,12 @@ spl3 mermaid2spl test-parallel.mmd --pattern-hints "parallel,quality-gate" -o te
 Complete end-to-end workflow:
 ```bash
 # 1. Generate from description
-spl3 text2mermaid "build a document review pipeline with human-in-the-loop approval for high-stakes decisions" -o pipeline.mmd
+spl3 text2mmd "build a document review pipeline with human-in-the-loop approval for high-stakes decisions" -o pipeline.mmd
 
 # 2. [Optional] Edit pipeline.mmd manually to refine the workflow
 
 # 3. Generate SPL code
-spl3 mermaid2spl pipeline.mmd -o pipeline.spl
+spl3 mmd2spl pipeline.mmd -o pipeline.spl
 
 # 4. Validate generated code
 spl3 validate pipeline.spl
@@ -637,7 +637,7 @@ This integration test validates the complete visual workflow programming paradig
 
 ## **Human-Friendly Output Formats**
 
-The `text2mermaid` command generates multiple formats to maximize accessibility and collaboration:
+The `text2mmd` command generates multiple formats to maximize accessibility and collaboration:
 
 ### **📄 .mmd File (Primary Output)**
 - **Format**: Raw Mermaid syntax
@@ -657,7 +657,7 @@ The `text2mermaid` command generates multiple formats to maximize accessibility 
 
 **Example:**
 ```bash
-spl3 text2mermaid "data pipeline" --save-markdown -o pipeline.mmd
+spl3 text2mmd "data pipeline" --save-markdown -o pipeline.mmd
 # Creates: pipeline.mmd + pipeline.md
 ```
 
@@ -674,10 +674,10 @@ spl3 text2mermaid "data pipeline" --save-markdown -o pipeline.mmd
 
 **Example:**
 ```bash
-spl3 text2mermaid "approval flow" --save-html -o approval.mmd
+spl3 text2mmd "approval flow" --save-html -o approval.mmd
 # Creates: approval.mmd + approval.html
 
-spl3 text2mermaid "review workflow" --preview -o review.mmd
+spl3 text2mmd "review workflow" --preview -o review.mmd
 # Creates: review.mmd + review.html + opens browser
 ```
 
@@ -686,7 +686,7 @@ spl3 text2mermaid "review workflow" --preview -o review.mmd
 **For Comprehensive Review:**
 ```bash
 # Generate all formats for team collaboration
-spl3 text2mermaid "user onboarding workflow" --save-html --save-markdown -o onboarding.mmd
+spl3 text2mmd "user onboarding workflow" --save-html --save-markdown -o onboarding.mmd
 
 # Results in:
 # - onboarding.mmd   (edit/version control)

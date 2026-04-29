@@ -1,10 +1,10 @@
-# text2mermaid — Visual Intent Validation for the SPL Pipeline
+# text2mmd — Visual Intent Validation for the SPL Pipeline
 
 ## Executive Summary
 
 Building agentic AI workflows is expensive. When intent is misunderstood early,
 every downstream step — SPL generation, framework compilation, testing, deployment —
-inherits the error and must be redone. **text2mermaid** is a lightweight, optional
+inherits the error and must be redone. **text2mmd** is a lightweight, optional
 checkpoint that converts a natural language description into a human-readable Mermaid
 diagram *before* any code is written. A 30-second diagram review can eliminate hours
 of rework.
@@ -24,13 +24,13 @@ fix than bugs found in design. The same multiplier applies to AI workflow develo
 | Stage error is caught | Rework scope | Relative cost |
 |---|---|---|
 | Natural language description | Retype a sentence | 1× |
-| **Mermaid diagram (text2mermaid)** | **Edit a node or edge** | **2×** |
+| **Mermaid diagram (text2mmd)** | **Edit a node or edge** | **2×** |
 | Generated SPL | Rewrite prompt logic | 10× |
 | splc-compiled target (LangGraph, Go…) | Rewrite framework code | 30× |
 | Runtime / testing | Debug + recompile + re-test | 60× |
 | Production deployment | Incident response + rollback | 100×+ |
 
-A single `text2mermaid` review catches errors at the 2× stage before they
+A single `text2mmd` review catches errors at the 2× stage before they
 cascade into the 30× or 100× range.
 
 ### 2. Shared vocabulary across roles
@@ -50,16 +50,16 @@ business intent (English) and implementation (code).
 
 SPL's DODA principle (Design Once, Deploy Anywhere) only delivers its full value when
 the design is *correct*. Every `splc` target compiled from a flawed `.spl` file
-must be thrown away and regenerated. With text2mermaid:
+must be thrown away and regenerated. With text2mmd:
 
 ```
-Without text2mermaid:
+Without text2mmd:
   attempt 1: text → SPL (wrong structure) → splc × 3 targets → discard all
   attempt 2: text → SPL (closer) → splc × 3 targets → partial discard
   attempt 3: text → SPL (correct) → splc × 3 targets → ship
   Total: 9 splc compilations, 6 discarded
 
-With text2mermaid:
+With text2mmd:
   attempt 1: text → diagram (wrong) → refine → approve
   attempt 2: diagram + text → SPL (correct) → splc × 3 targets → ship
   Total: 1 diagram refinement, 3 splc compilations, 0 discarded
@@ -76,7 +76,7 @@ refinement rounds, timestamp). This creates a lightweight audit trail:
 
 ### 5. Lower barrier to entry for non-engineers
 
-text2mermaid makes SPL accessible to users who cannot read or write code.
+text2mmd makes SPL accessible to users who cannot read or write code.
 They can describe a workflow in plain English, review the diagram, refine it
 through natural language feedback, and approve it — without ever seeing SPL syntax.
 The LLM handles the translation; the human handles the validation.
@@ -85,7 +85,7 @@ The LLM handles the translation; the human handles the validation.
 
 ## Enhanced SDLC Process
 
-### Current process (without text2mermaid)
+### Current process (without text2mmd)
 
 ```
  User                    LLM                    System
@@ -107,13 +107,13 @@ The LLM handles the translation; the human handles the validation.
   │── "fix it, different structure" ──────────────▶│  ← expensive
 ```
 
-### Enhanced process (with text2mermaid)
+### Enhanced process (with text2mmd)
 
 ```
  User                    LLM                    System
   │                       │                       │
   │── description ────────▶│                       │
-  │                       │── text2mermaid ───────▶│
+  │                       │── text2mmd ───────▶│
   │◀─ Mermaid diagram ────│                       │
   │                       │                       │
   │ [user reviews diagram — easy to validate] ✓  │
@@ -127,7 +127,7 @@ The LLM handles the translation; the human handles the validation.
   │◀─ targets (correct) ─────────────────────────│  ← first-time quality
 ```
 
-### Where text2mermaid fits in the SPL SDLC
+### Where text2mmd fits in the SPL SDLC
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -138,7 +138,7 @@ The LLM handles the translation; the human handles the validation.
 │  Plain   │ Mermaid  │  .spl    │  splc    │  .test   │  target  │
 │  English │ diagram  │  file    │ targets  │  .yaml   │ runtime  │
 │          │          │          │          │          │          │
-│          │    ◀ text2mermaid ▶ │          │          │          │
+│          │    ◀ text2mmd ▶ │          │          │          │
 │          │          │ ◀ text2spl ▶        │          │          │
 │          │          │          │ ◀ splc ▶ │          │          │
 │          │          │          │          │ ◀ spl test ▶        │
@@ -155,7 +155,7 @@ entire DODA automation chain.
 ### Quality gates and feedback loops
 
 ```
-text2mermaid refinement loop (cheap — seconds each):
+text2mmd refinement loop (cheap — seconds each):
   description → diagram → [approve?]
                   ↑           │ No
                   └─ refine ◀─┘
@@ -172,7 +172,7 @@ spl test (automated):
 ```
 
 Each stage has a clear input contract from the stage before it.
-`text2mermaid` makes that contract explicit and human-verified.
+`text2mmd` makes that contract explicit and human-verified.
 
 ---
 
@@ -209,7 +209,7 @@ Auto-select based on keywords: *"agent"*, *"parallel"*, *"concurrent"* → prefe
 
 ### As an optional step in `spl3 text2spl`
 
-The text2mermaid step is **opt-in** via a flag. It adds no latency when not used.
+The text2mmd step is **opt-in** via a flag. It adds no latency when not used.
 Existing workflows are completely unaffected.
 
 ```bash
@@ -253,7 +253,7 @@ The diagram is regenerated with the feedback in context.
 ### Config keys (future `~/.spl/config.yaml`)
 
 ```yaml
-text2mermaid:
+text2mmd:
   enabled: false          # opt-in by default — no behaviour change for existing users
   adapter: claude_cli     # can differ from the text2spl adapter
   model: null             # inherits adapter default
@@ -270,7 +270,7 @@ text2mermaid:
 When the `.spl` has the right structure from the start, `splc` generates cleaner, smaller targets
 with no structural dead-ends to work around:
 
-| Scenario | Without text2mermaid | With text2mermaid |
+| Scenario | Without text2mmd | With text2mmd |
 |---|---|---|
 | Missing loop | `splc` generates linear code; loop added manually | Caught at diagram stage |
 | Wrong branching | Rewrite SPL + retranslate all targets | Fixed in one diagram edit |
@@ -296,7 +296,7 @@ not the *architecture* — that decision has already been made and approved by a
   - "Approve & Proceed" → stores diagram in `session_state`, visible on Text2SPL page
   - Approved diagrams saved to `data/diagrams/` for audit trail with metadata frontmatter
 
-- `spl3/ui/streamlit/pages/1_⚡_Text2SPL.py` (updated)
+- `spl3/ui/streamlit/pages/1_⚡_Text2SPL` (updated)
   - Detects approved diagram in `session_state`
   - Injects it as a structural blueprint into the compiler description
   - Shows collapsible banner with active diagram and clear button
@@ -305,14 +305,14 @@ not the *architecture* — that decision has already been made and approved by a
   - Text2Mermaid added to nav table as the first step in the pipeline
   - "Diagrams approved" counter added to landing metrics
 
-### Phase 2 — CLI integration (SPL.py)
+### Phase 2 — CLI integration (SPL)
 
-- `spl/text2mermaid.py` — `Text2Mermaid` class
+- `spl/text2mmd.py` — `Text2Mermaid` class
   - `generate(description, diagram_type="auto") → str`
   - `refine(diagram, feedback) → str`
   - `extract_mermaid(llm_output) → str` (strips code fences)
 - `spl3/cli.py` — add `--via-mermaid`, `--mermaid-only`, `--save-mermaid` to `text2spl`
-- `spl/config.py` — add `text2mermaid.*` config section
+- `spl/config.py` — add `text2mmd.*` config section
 
 ### Phase 3 — Vue.js UI (SPL.ts)
 

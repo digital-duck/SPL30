@@ -802,16 +802,12 @@ def fix_mermaid_syntax(mermaid_text, style="flowchart"):
     Handles:
     - Single braces {Decision} → Double braces {{Decision}}
     - Wrong arrows -> → Correct arrows -->
-    - Missing node IDs: Process → A[Process]
     - Missing diagram declaration
-    - Unbracketed nodes and other syntax issues
     """
     import re
 
     lines = mermaid_text.strip().split('\n')
     fixed_lines = []
-    node_id_counter = [ord('A')]  # Use list for mutable counter
-    node_map = {}  # Maps text to assigned node ID
 
     # Ensure diagram declaration
     has_declaration = any(line.strip().startswith(('flowchart', 'graph', 'sequenceDiagram')) for line in lines)
@@ -820,60 +816,26 @@ def fix_mermaid_syntax(mermaid_text, style="flowchart"):
 
     for line in lines:
         line = line.strip()
-        if not line or line.startswith(('flowchart', 'graph', 'sequenceDiagram')):
-            if line:
-                fixed_lines.append(line)
+        if not line:
+            continue
+
+        if line.startswith(('flowchart', 'graph', 'sequenceDiagram')):
+            fixed_lines.append(line)
             continue
 
         # Fix arrow syntax: -> becomes -->
         line = re.sub(r'(?<!-)->(?!>)', '-->', line)
 
         # Fix single braces to double braces for decisions: {text} → {{text}}
-        line = re.sub(r'(?<!\{)\{([^}]+)\}(?!\})', r'{{\1}}', line)
+        # This is the critical fix for the reported error
+        # Only replace single braces, avoid creating triple braces
+        line = re.sub(r'([A-Z])\{([^}]+)\}(?!\})', r'\1{{\2}}', line)
 
-        # Parse and fix node definitions and connections
-        if '-->' in line:
-            # This is a connection line
-            parts = re.split(r'\s*(?:-->)\s*', line)
-            fixed_parts = []
+        # Add proper indentation
+        if line and not line.startswith('    '):
+            line = "    " + line
 
-            for part in parts:
-                part = part.strip()
-
-                # Handle edge labels: |label|
-                if '|' in part and not (part.startswith('|') and part.endswith('|')):
-                    # This might be: A -->|label| B, extract the B part
-                    edge_match = re.match(r'(.*?)\|([^|]*)\|\s*(.+)', part)
-                    if edge_match:
-                        before, label, after = edge_match.groups()
-                        if before.strip():
-                            fixed_parts.append(fix_node_syntax(before.strip(), node_map, node_id_counter))
-                        fixed_parts.append(f"|{label}|")
-                        part = after.strip()
-
-                fixed_parts.append(fix_node_syntax(part, node_map, node_id_counter))
-
-            # Reconstruct the line
-            result = ""
-            i = 0
-            while i < len(fixed_parts):
-                result += fixed_parts[i]
-                if i < len(fixed_parts) - 1:
-                    next_part = fixed_parts[i + 1]
-                    if next_part.startswith('|') and next_part.endswith('|'):
-                        # This is an edge label
-                        result += " -->" + next_part + " "
-                        i += 2  # Skip the label and move to next node
-                    else:
-                        result += " --> "
-                        i += 1
-                else:
-                    i += 1
-
-            fixed_lines.append("    " + result)
-        else:
-            # Standalone node definition or other line
-            fixed_lines.append("    " + fix_node_syntax(line, node_map, node_id_counter))
+        fixed_lines.append(line)
 
     return '\n'.join(fixed_lines)
 
@@ -916,10 +878,10 @@ def fix_node_syntax(text, node_map, node_id_counter):
 
 
 # ------------------------------------------------------------------ #
-# spl3 text2mermaid                                                   #
+# spl3 text2mmd                                                       #
 # ------------------------------------------------------------------ #
 
-@main.command("text2mermaid")
+@main.command("text2mmd")
 @click.argument("description", required=False, default=None)
 @click.option("--description", "-d", "description_opt", default=None, metavar="TEXT_OR_FILE",
               help="Natural language workflow description or file path.")
@@ -946,7 +908,7 @@ def fix_node_syntax(text, node_map, node_id_counter):
               help="Output directory (default: $HOME/.spl/mermaid).")
 @click.option("--no-defaults", is_flag=True, default=False,
               help="Disable default --save-html, --save-markdown, --preview.")
-def cmd_text2mermaid(description, description_opt, adapter, model, style, output, validate, preview, save_markdown, save_html, save_png, out_dir, no_defaults):
+def cmd_text2mmd(description, description_opt, adapter, model, style, output, validate, preview, save_markdown, save_html, save_png, out_dir, no_defaults):
     """Generate Mermaid flowchart from natural language workflow description.
 
     This creates a visual representation of the workflow that can be reviewed
@@ -954,9 +916,9 @@ def cmd_text2mermaid(description, description_opt, adapter, model, style, output
 
     \b
     Examples:
-      spl3 text2mermaid "build a review agent that refines text until quality > 0.8"
-      spl3 text2mermaid --description "research workflow" -o research.mmd
-      spl3 text2mermaid "parallel code review" --style flowchart --preview
+      spl3 text2mmd "build a review agent that refines text until quality > 0.8"
+      spl3 text2mmd --description "research workflow" -o research.mmd
+      spl3 text2mmd "parallel code review" --style flowchart --preview
     """
     import re as _re
     import sys
@@ -1049,7 +1011,7 @@ Generate ONLY the diagram code. No explanations. Follow the format exactly:
 
     # Extract mermaid code from markdown if present
     if "```mermaid" in mermaid_text:
-        mermaid_match = _re.search(r"```mermaid\\s*\n(.*?)\n```", mermaid_text, _re.DOTALL)
+        mermaid_match = _re.search(r"```mermaid\s*\n(.*?)\n```", mermaid_text, _re.DOTALL)
         if mermaid_match:
             mermaid_text = mermaid_match.group(1).strip()
 
@@ -1113,25 +1075,25 @@ Generate ONLY the diagram code. No explanations. Follow the format exactly:
 
     # Markdown format for VS Code preview
     if save_markdown:
-        cmd_line = ' '.join(['spl3', 'text2mermaid'] + sys.argv[2:])
+        cmd_line = ' '.join(['spl3', 'text2mmd'] + sys.argv[2:])
         title = base_name.title().replace('_', ' ').replace('-', ' ')
 
         markdown_content = "# " + title + " Workflow\n\n"
-        markdown_content += "Generated with [SPL.py](https://github.com/digital-duck/SPL.py) using: `" + cmd_line + "`\n\n"
+        markdown_content += "Generated with [SPL](https://github.com/digital-duck/SPL) using: `" + cmd_line + "`\n\n"
         markdown_content += "## Mermaid Diagram\n\n"
         markdown_content += "```mermaid\n" + mermaid_text + "\n```\n\n"
         markdown_content += "## Usage Options\n\n"
         markdown_content += "### For SPL Development\n"
         markdown_content += "1. Review the workflow diagram above\n"
         markdown_content += "2. Edit the mermaid code if needed\n"
-        markdown_content += "3. Generate SPL code: `spl3 mermaid2spl " + str(output) + " -o " + base_name + ".spl`\n"
+        markdown_content += "3. Generate SPL code: `spl3 mmd2spl " + str(output) + " -o " + base_name + ".spl`\n"
         markdown_content += "4. Validate: `spl3 validate " + base_name + ".spl`\n\n"
         markdown_content += "### For General Use\n"
         markdown_content += "1. Use the `.mmd` file with any Mermaid-compatible tool\n"
         markdown_content += "2. Copy the diagram code for documentation, presentations, or websites\n"
         markdown_content += "3. Edit the visual workflow and regenerate as needed\n\n"
         markdown_content += "---\n\n"
-        markdown_content += "**Learn more**: [SPL.py Repository](https://github.com/digital-duck/SPL.py) | [Documentation](https://github.com/digital-duck/SPL.py#readme)\n"
+        markdown_content += "**Learn more**: [SPL Repository](https://github.com/digital-duck/SPL) | [Documentation](https://github.com/digital-duck/SPL#readme)\n"
         md_path = output_dir / (base_name + ".md")
         md_path.write_text(markdown_content, encoding="utf-8")
         additional_files.append("Markdown (VS Code): " + str(md_path))
@@ -1163,7 +1125,7 @@ Generate ONLY the diagram code. No explanations. Follow the format exactly:
             '    <div class="container">',
             '        <div class="header">',
             "            <h1>" + title + " Workflow</h1>",
-            '            <p><strong>Generated with <a href="https://github.com/digital-duck/SPL.py" target="_blank">SPL.py</a></strong></p>',
+            '            <p><strong>Generated with <a href="https://github.com/digital-duck/SPL" target="_blank">SPL</a></strong></p>',
             "            <p><strong>File:</strong> " + filename + " | <strong>Style:</strong> " + style + " | <strong>Adapter:</strong> " + adapter + "</p>",
             "        </div>",
             '        <div id="mermaid-container" class="mermaid">',
@@ -1183,11 +1145,11 @@ Generate ONLY the diagram code. No explanations. Follow the format exactly:
             "        </div>",
             '        <div class="footer">',
             "            <p><strong>Usage Options:</strong></p>",
-            "            <p><strong>For SPL:</strong> Generate code with <code>spl3 mermaid2spl " + filename + " -o " + base_name + ".spl</code></p>",
+            "            <p><strong>For SPL:</strong> Generate code with <code>spl3 mmd2spl " + filename + " -o " + base_name + ".spl</code></p>",
             "            <p><strong>For General Use:</strong> Copy diagram code for documentation, presentations, or other Mermaid tools</p>",
             '            <hr style="margin: 20px 0;">',
-            '            <p><strong>About SPL.py:</strong> <a href="https://github.com/digital-duck/SPL.py" target="_blank">GitHub Repository</a> |',
-            '               <a href="https://github.com/digital-duck/SPL.py#readme" target="_blank">Documentation</a></p>',
+            '            <p><strong>About SPL:</strong> <a href="https://github.com/digital-duck/SPL" target="_blank">GitHub Repository</a> |',
+            '               <a href="https://github.com/digital-duck/SPL#readme" target="_blank">Documentation</a></p>',
             '            <p><small>Visual workflow programming • General purpose workflow visualization tool</small></p>',
             "        </div>",
             "    </div>",
@@ -1283,10 +1245,10 @@ Generate ONLY the diagram code. No explanations. Follow the format exactly:
 
 
 # ------------------------------------------------------------------ #
-# spl3 mermaid2spl                                                    #
+# spl3 mmd2spl                                                    #
 # ------------------------------------------------------------------ #
 
-@main.command("mermaid2spl")
+@main.command("mmd2spl")
 @click.argument("mermaid_file")
 @click.option("--output", "-o", default=None, metavar="FILE",
               help="Write generated SPL to FILE.")
@@ -1297,7 +1259,7 @@ Generate ONLY the diagram code. No explanations. Follow the format exactly:
               help="Base SPL template type.")
 @click.option("--pattern-hints", default=None, metavar="HINTS",
               help="Comma-separated hints for SPL patterns (e.g., 'linear,parallel').")
-def cmd_mermaid2spl(mermaid_file, output, validate, template, pattern_hints):
+def cmd_mmd2spl(mermaid_file, output, validate, template, pattern_hints):
     """Generate SPL workflow from Mermaid flowchart diagram.
 
     Converts a Mermaid flowchart into executable SPL code, mapping visual
@@ -1305,9 +1267,9 @@ def cmd_mermaid2spl(mermaid_file, output, validate, template, pattern_hints):
 
     \b
     Examples:
-      spl3 mermaid2spl workflow.mmd -o workflow.spl
-      spl3 mermaid2spl diagram.mmd --template function --validate
-      spl3 mermaid2spl review.mmd --pattern-hints "iterative,quality-gate"
+      spl3 mmd2spl workflow.mmd -o workflow.spl
+      spl3 mmd2spl diagram.mmd --template function --validate
+      spl3 mmd2spl review.mmd --pattern-hints "iterative,quality-gate"
     """
     import re as _re
     from pathlib import Path
@@ -1684,6 +1646,333 @@ def cmd_describe(spl_path, adapter, model, spec_dir):
 
     spec_path.write_text(spec_text, encoding="utf-8")
     click.echo(f"Spec written to: {spec_path}")
+
+
+# ------------------------------------------------------------------ #
+# spl3 compare                                                        #
+# ------------------------------------------------------------------ #
+
+@main.command("compare")
+@click.argument("file1")
+@click.argument("file2")
+@click.option("--adapter", default="ollama", show_default=True,
+              help="LLM adapter to use for semantic analysis.")
+@click.option("--model", default=None, metavar="MODEL",
+              help="Model override for the adapter.")
+@click.option("--output", "-o", default=None, metavar="FILE",
+              help="Write comparison report to FILE.")
+@click.option("--format", default="markdown", show_default=True,
+              type=click.Choice(["markdown", "json", "text"]),
+              help="Output format for comparison report.")
+@click.option("--focus", default="all", show_default=True,
+              type=click.Choice(["all", "structure", "logic", "quality", "syntax"]),
+              help="Focus comparison on specific aspects.")
+@click.option("--diff", is_flag=True, default=False,
+              help="Include mechanical line-by-line diff (like git diff).")
+@click.option("--diff-only", is_flag=True, default=False,
+              help="Show only mechanical diff, skip semantic analysis.")
+@click.option("--diff-style", default="unified", show_default=True,
+              type=click.Choice(["unified", "context", "side-by-side"]),
+              help="Style for mechanical diff output.")
+@click.option("--no-color", is_flag=True, default=False,
+              help="Disable colored diff output.")
+def cmd_compare(file1, file2, adapter, model, output, format, focus, diff, diff_only, diff_style, no_color):
+    """Perform semantic and/or mechanical comparison between two files.
+
+    Analyzes and compares the content, structure, logic, and quality
+    of two files using LLM-powered semantic analysis and/or traditional
+    line-by-line diff. Works with any text-based files including .mmd, .md, .spl, .txt, etc.
+
+    \b
+    Examples:
+      spl3 compare workflow1.mmd workflow2.mmd
+      spl3 compare claude_output.md ollama_output.md --focus quality
+      spl3 compare old_spec.md new_spec.md -o comparison_report.md --diff
+      spl3 compare chart1.mmd chart2.mmd --diff-only --diff-style side-by-side
+      spl3 compare file1.spl file2.spl --adapter claude_cli --diff --format json
+    """
+    from pathlib import Path
+    import json as _json
+    import difflib
+    import sys
+
+    # Validate input files
+    path1 = Path(file1)
+    path2 = Path(file2)
+
+    if not path1.exists():
+        raise click.ClickException(f"File not found: {file1}")
+    if not path2.exists():
+        raise click.ClickException(f"File not found: {file2}")
+
+    # Read file contents
+    content1 = path1.read_text(encoding="utf-8")
+    content2 = path2.read_text(encoding="utf-8")
+
+    # Generate mechanical diff if requested
+    mechanical_diff = ""
+    if diff or diff_only:
+        lines1 = content1.splitlines(keepends=True)
+        lines2 = content2.splitlines(keepends=True)
+
+        if diff_style == "unified":
+            diff_lines = list(difflib.unified_diff(
+                lines1, lines2,
+                fromfile=f"a/{path1.name}",
+                tofile=f"b/{path2.name}",
+                lineterm=""
+            ))
+
+            if not no_color and sys.stdout.isatty():
+                # Add ANSI color codes for terminal output
+                colored_diff = []
+                for line in diff_lines:
+                    if line.startswith('+++') or line.startswith('---'):
+                        colored_diff.append(f"\033[1m{line}\033[0m")  # Bold
+                    elif line.startswith('@@'):
+                        colored_diff.append(f"\033[36m{line}\033[0m")  # Cyan
+                    elif line.startswith('+'):
+                        colored_diff.append(f"\033[32m{line}\033[0m")  # Green
+                    elif line.startswith('-'):
+                        colored_diff.append(f"\033[31m{line}\033[0m")  # Red
+                    else:
+                        colored_diff.append(line)
+                mechanical_diff = "\n".join(colored_diff)
+            else:
+                mechanical_diff = "\n".join(diff_lines)
+
+        elif diff_style == "context":
+            diff_lines = list(difflib.context_diff(
+                lines1, lines2,
+                fromfile=f"a/{path1.name}",
+                tofile=f"b/{path2.name}",
+                lineterm=""
+            ))
+            mechanical_diff = "\n".join(diff_lines)
+
+        elif diff_style == "side-by-side":
+            # Create side-by-side diff
+            differ = difflib.HtmlDiff()
+            if format == "markdown":
+                # For markdown, create a simple side-by-side table
+                side_by_side_lines = []
+                side_by_side_lines.append(f"| {path1.name} | {path2.name} |")
+                side_by_side_lines.append("|---|---|")
+
+                # Get line-by-line differences
+                for i, (line1, line2) in enumerate(zip(lines1, lines2)):
+                    line1_clean = line1.rstrip('\n\r').replace('|', '\\|')
+                    line2_clean = line2.rstrip('\n\r').replace('|', '\\|')
+                    if line1 != line2:
+                        side_by_side_lines.append(f"| **{line1_clean}** | **{line2_clean}** |")
+                    else:
+                        side_by_side_lines.append(f"| {line1_clean} | {line2_clean} |")
+
+                # Handle different file lengths
+                max_len = max(len(lines1), len(lines2))
+                for i in range(min(len(lines1), len(lines2)), max_len):
+                    if i < len(lines1):
+                        line1_clean = lines1[i].rstrip('\n\r').replace('|', '\\|')
+                        side_by_side_lines.append(f"| **{line1_clean}** | *[missing]* |")
+                    else:
+                        line2_clean = lines2[i].rstrip('\n\r').replace('|', '\\|')
+                        side_by_side_lines.append(f"| *[missing]* | **{line2_clean}** |")
+
+                mechanical_diff = "\n".join(side_by_side_lines)
+            else:
+                # For other formats, use simple text side-by-side
+                mechanical_diff = differ.make_file(
+                    lines1, lines2,
+                    fromdesc=path1.name,
+                    todesc=path2.name
+                )
+
+        # If no differences found
+        if not mechanical_diff.strip() or mechanical_diff == "\n".join([f"--- a/{path1.name}", f"+++ b/{path2.name}"]):
+            mechanical_diff = "No mechanical differences found - files are identical."
+
+    # Handle diff-only mode
+    if diff_only:
+        if output:
+            output_path = Path(output)
+            output_path.write_text(mechanical_diff, encoding="utf-8")
+            click.echo(f"Mechanical diff written to: {output_path}")
+        else:
+            click.echo(mechanical_diff)
+        return
+
+    # Determine file types for context
+    ext1 = path1.suffix.lower()
+    ext2 = path2.suffix.lower()
+
+    # Build comparison prompt based on focus
+    focus_prompts = {
+        "all": "Provide a comprehensive comparison covering structure, logic, quality, and syntax.",
+        "structure": "Focus on architectural and organizational differences.",
+        "logic": "Focus on logical flow, decision points, and process sequences.",
+        "quality": "Focus on completeness, sophistication, and best practices.",
+        "syntax": "Focus on syntax correctness, formatting, and technical accuracy."
+    }
+
+    prompt = f"""Compare these two files semantically and provide a detailed analysis.
+
+**File 1**: {path1.name} ({ext1})
+**File 2**: {path2.name} ({ext2})
+**Focus**: {focus_prompts[focus]}
+
+**File 1 Content:**
+```
+{content1}
+```
+
+**File 2 Content:**
+```
+{content2}
+```
+
+Please provide a structured comparison analysis with the following sections:
+
+## Summary
+Brief overview of the main differences and which file is stronger overall.
+
+## Content Analysis
+### File 1 Strengths
+- Key advantages and well-implemented aspects
+
+### File 2 Strengths
+- Key advantages and well-implemented aspects
+
+### Common Elements
+- Shared concepts, structures, or approaches
+
+## Detailed Comparison
+### Structure & Organization
+Compare the overall structure, flow, and organization.
+
+### Logic & Completeness
+Analyze logical flow, decision points, error handling, and completeness.
+
+### Quality & Sophistication
+Evaluate complexity, depth, best practices, and professional quality.
+
+### Syntax & Technical Accuracy
+Review syntax correctness, formatting, and technical implementation.
+
+## Recommendations
+1. **Best Choice**: Which file is better and why
+2. **Improvements**: Specific suggestions to enhance the weaker file
+3. **Hybrid Approach**: How to combine strengths from both files
+
+## Scoring
+Rate each file (1-10) on:
+- Structure: [File1]/10, [File2]/10
+- Logic: [File1]/10, [File2]/10
+- Quality: [File1]/10, [File2]/10
+- Overall: [File1]/10, [File2]/10
+
+Provide actionable insights for choosing between or improving these files."""
+
+    try:
+        from spl3.adapters import get_adapter
+    except ImportError:
+        raise click.ClickException("spl-llm 2.0 not installed: pip install spl-llm>=2.0.0")
+
+    llm = get_adapter(adapter, **{"model": model} if model else {})
+
+    if diff:
+        click.echo(f"Comparing {path1.name} vs {path2.name} using {adapter} (semantic + mechanical diff)...")
+    else:
+        click.echo(f"Comparing {path1.name} vs {path2.name} using {adapter}...")
+
+    result = asyncio.run(llm.generate(prompt, **({"model": model} if model else {})))
+    comparison_text = result if isinstance(result, str) else getattr(result, "content", str(result))
+
+    # Format output based on requested format
+    if format == "json":
+        # Extract key metrics for JSON (simplified structure)
+        json_output = {
+            "files": {
+                "file1": {"name": path1.name, "type": ext1},
+                "file2": {"name": path2.name, "type": ext2}
+            },
+            "analysis": {
+                "summary": comparison_text.split("## Content Analysis")[0].replace("## Summary", "").strip(),
+                "full_report": comparison_text
+            },
+            "metadata": {
+                "adapter": adapter,
+                "model": model or "default",
+                "focus": focus,
+                "timestamp": datetime.now().isoformat(),
+                "includes_diff": diff,
+                "diff_style": diff_style if diff else None
+            }
+        }
+
+        if diff and mechanical_diff:
+            json_output["mechanical_diff"] = {
+                "style": diff_style,
+                "content": mechanical_diff
+            }
+
+        output_content = _json.dumps(json_output, indent=2)
+
+    elif format == "text":
+        # Plain text without markdown formatting
+        output_content = comparison_text.replace("#", "").replace("**", "").replace("*", "")
+
+        if diff and mechanical_diff:
+            output_content = f"""MECHANICAL DIFF ({diff_style.upper()})
+{'=' * 60}
+
+{mechanical_diff}
+
+{'=' * 60}
+
+SEMANTIC ANALYSIS
+{'=' * 60}
+
+{output_content}"""
+
+    else:  # markdown (default)
+        # Add metadata header
+        output_content = f"""# File Comparison Report
+
+**Files Compared:**
+- File 1: `{path1.name}` ({ext1})
+- File 2: `{path2.name}` ({ext2})
+- **Adapter:** {adapter}
+- **Model:** {model or 'default'}
+- **Focus:** {focus}
+- **Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+{f"- **Includes Diff:** {diff_style} style" if diff else ""}
+
+---
+
+{comparison_text}
+
+{f'''
+---
+
+## Mechanical Diff ({diff_style.title()} Style)
+
+```diff
+{mechanical_diff}
+```
+''' if diff and mechanical_diff else ""}
+
+---
+
+*Generated by SPL semantic comparison tool*
+"""
+
+    # Output results
+    if output:
+        output_path = Path(output)
+        output_path.write_text(output_content, encoding="utf-8")
+        click.echo(f"Comparison report written to: {output_path}")
+    else:
+        click.echo(output_content)
 
 
 # ------------------------------------------------------------------ #

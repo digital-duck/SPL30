@@ -49,5 +49,5 @@ pip install -e .
 spl3 text2spl --description "/home/gong2/projects/wgong/PocketFlow/cookbook/pocketflow-agent/flow-splc-python_pocketflow-spec.md" \
     --mode workflow \
     --adapter claude_cli \
-    -o /home/gong2/projects/digital-duck/SPL.py/cookbook-pocketflow/pocketflow-agent/pocketflow-agent.spl
+    -o /home/gong2/projects/digital-duck/SPL/cookbook-pocketflow/pocketflow-agent/pocketflow-agent.spl
 ```
