@@ -124,8 +124,13 @@ class GeminiCLIAdapter(MultiModalAdapter):
         return max(1, len(text) // 4)
 
     def list_models(self) -> list[str]:
-        """Return some common Gemini model names."""
-        return ["gemini-2.0-flash", "gemini-1.5-pro", "gemini-1.5-flash"]
+        """Return current Gemini model names."""
+        return [
+            "gemini-2.5-flash",
+            "gemini-2.5-flash-lite",
+            "gemini-3-flash-preview",
+            "gemini-3.1-flash-lite-preview",
+        ]
 
     def __repr__(self) -> str:
         return f"GeminiCLIAdapter(cli_path={self.cli_path!r}, model={self.model!r})"

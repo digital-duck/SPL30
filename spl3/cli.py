@@ -1250,6 +1250,10 @@ Generate ONLY the diagram code. No explanations. Follow the format exactly:
 
 @main.command("mmd2spl")
 @click.argument("mermaid_file")
+@click.option("--adapter", default="ollama", show_default=True, metavar="NAME",
+              help="LLM adapter to use.")
+@click.option("--model", "-m", default=None, metavar="MODEL",
+              help="Model override for the adapter.")
 @click.option("--output", "-o", default=None, metavar="FILE",
               help="Write generated SPL to FILE.")
 @click.option("--validate/--no-validate", default=True, show_default=True,
@@ -1258,205 +1262,151 @@ Generate ONLY the diagram code. No explanations. Follow the format exactly:
               type=click.Choice(["workflow", "function"]),
               help="Base SPL template type.")
 @click.option("--pattern-hints", default=None, metavar="HINTS",
-              help="Comma-separated hints for SPL patterns (e.g., 'linear,parallel').")
-def cmd_mmd2spl(mermaid_file, output, validate, template, pattern_hints):
+              help="Comma-separated hints for SPL patterns (e.g., 'react,self_refine').")
+def cmd_mmd2spl(mermaid_file, adapter, model, output, validate, template, pattern_hints):
     """Generate SPL workflow from Mermaid flowchart diagram.
 
-    Converts a Mermaid flowchart into executable SPL code, mapping visual
-    elements to SPL constructs like GENERATE, EVALUATE, WHILE, and CALL PARALLEL.
+    Converts a Mermaid flowchart into executable SPL code using an LLM, mapping
+    visual elements to SPL constructs like GENERATE, EVALUATE, WHILE, and CALL PARALLEL.
 
     \b
     Examples:
       spl3 mmd2spl workflow.mmd -o workflow.spl
+      spl3 mmd2spl diagram.mmd --adapter claude_cli --model claude-sonnet-4-6 -o agent.spl
+      spl3 mmd2spl review.mmd --adapter gemini_cli --model gemini-3-flash-preview -o review.spl
       spl3 mmd2spl diagram.mmd --template function --validate
-      spl3 mmd2spl review.mmd --pattern-hints "iterative,quality-gate"
     """
     import re as _re
     from pathlib import Path
+    from spl.adapters import get_adapter
+    from spl.text2spl import Text2SPL
 
     # Read Mermaid file
-    if not Path(mermaid_file).exists():
+    mermaid_path = Path(mermaid_file)
+    if not mermaid_path.exists():
         raise click.ClickException(f"Mermaid file not found: {mermaid_file}")
 
-    mermaid_content = Path(mermaid_file).read_text(encoding="utf-8")
+    mermaid_content = mermaid_path.read_text(encoding="utf-8")
+    workflow_name = mermaid_path.stem.replace("-", "_")
 
-    # Basic Mermaid parsing - extract nodes and connections
-    nodes = {}
-    edges = []
+    # Build LLM adapter
+    try:
+        llm = get_adapter(adapter, **{"model": model} if model else {})
+    except ValueError as exc:
+        raise click.ClickException(str(exc)) from exc
 
-    # Parse flowchart nodes: A[Label] or A{Decision} or A(Process)
-    node_pattern = r'(\\w+)(?:\\[(.*?)\\]|\\{(.*?)\\}|\\((.*?)\\))'
-    for match in _re.finditer(node_pattern, mermaid_content):
-        node_id = match.group(1)
-        label = match.group(2) or match.group(3) or match.group(4) or node_id
-
-        # Determine node type from syntax
-        if match.group(3):  # {label} = decision
-            node_type = "decision"
-        elif any(keyword in label.lower() for keyword in ["start", "begin"]):
-            node_type = "start"
-        elif any(keyword in label.lower() for keyword in ["end", "finish", "return"]):
-            node_type = "end"
-        else:
-            node_type = "process"
-
-        nodes[node_id] = {"label": label, "type": node_type}
-
-    # Parse edges: A --> B or A -->|label| B
-    edge_pattern = r'(\\w+)\\s*(?:-->|->)\\s*(?:\\|([^|]*)\\|\\s*)?(\\w+)'
-    for match in _re.finditer(edge_pattern, mermaid_content):
-        from_node = match.group(1)
-        edge_label = match.group(2)
-        to_node = match.group(3)
-        edges.append({"from": from_node, "to": to_node, "label": edge_label})
-
-    # Generate SPL based on structure
-    workflow_name = Path(mermaid_file).stem.replace("-", "_")
-
-    # Detect patterns
-    has_loops = any(
-        any(e2["from"] == edge["to"] and e2["to"] == edge["from"] for e2 in edges)
-        for edge in edges
+    # Build prompt
+    hints_clause = f"\nPattern hints: {pattern_hints}" if pattern_hints else ""
+    template_clause = (
+        "Generate a WORKFLOW ... DO ... END block."
+        if template == "workflow"
+        else "Generate a CREATE FUNCTION ... AS $$ ... $$ block."
     )
 
-    has_decisions = any(node["type"] == "decision" for node in nodes.values())
-    has_parallel = len([n for n in nodes.values() if n["type"] == "process"]) > 3
+    prompt = f"""Convert the following Mermaid flowchart into valid SPL 3.0 code.
 
-    # Build SPL
-    spl_lines = []
+Mermaid diagram:
+```mermaid
+{mermaid_content}
+```
 
-    if template == "workflow":
-        spl_lines.extend([
-            f"WORKFLOW {workflow_name}",
-            "  INPUT @input TEXT",
-            "  OUTPUT @result TEXT",
-            "DO"
-        ])
+Target template: {template_clause}{hints_clause}
 
-        # Add variables
-        for node_id, node in nodes.items():
-            if node["type"] == "process":
-                var_name = _re.sub(r'\W+', '_', node["label"].lower())
-                spl_lines.append(f"  @{var_name} := '';")
+STRICT SPL SYNTAX RULES:
 
-        # Add main logic
-        process_nodes = [n for n in nodes.values() if n["type"] == "process"]
-        decision_nodes = [n for n in nodes.values() if n["type"] == "decision"]
+1. TYPES: Use TEXT, INTEGER, FLOAT, BOOL only. Never use STRING.
 
-        if has_loops and decision_nodes:
-            # Iterative pattern
-            spl_lines.extend([
-                "  @iteration := 0;",
-                "  @max_iterations := 3;",
-                "",
-                "  WHILE @iteration < @max_iterations DO",
-                "    DO"
-            ])
+2. CREATE FUNCTION must be TOP-LEVEL (before the WORKFLOW block, never inside DO...END):
+   CREATE FUNCTION <name>(<param> TEXT) RETURNS TEXT AS $$
+   <natural language prompt instructions using {{param}} placeholders>
+   $$;
 
-            for node in process_nodes[:2]:  # Main processes
-                var_name = _re.sub(r'\W+', '_', node["label"].lower())
-                func_name = _re.sub(r'\W+', '_', node["label"].lower()).strip('_')
-                # Avoid reserved keywords
-                if func_name in ['input', 'output', 'result', 'return', 'end', 'do', 'while', 'evaluate', 'when', 'then', 'else']:
-                    func_name = f"process_{func_name}"
-                spl_lines.append(f"      GENERATE {func_name}(@input) INTO @{var_name};")
+3. WORKFLOW structure:
+   WORKFLOW {workflow_name}
+     INPUT @<name> TEXT [, ...]
+     OUTPUT @<name> TEXT
+   DO
+     ...statements...
+   END;
 
-            # Add decision logic
-            if decision_nodes:
-                decision = decision_nodes[0]
-                spl_lines.extend([
-                    f"      EVALUATE @{var_name}",
-                    f"        WHEN contains('complete') THEN",
-                    f"          RETURN @{var_name} WITH status = 'complete';",
-                    f"        ELSE",
-                    f"          @iteration := @iteration + 1;",
-                    "      END;"
-                ])
+4. Statements inside DO...END:
+   - GENERATE <fn>(@arg1, @arg2) INTO @var;
+   - CALL <tool>(@arg) INTO @var;
+   - EVALUATE @var
+       WHEN contains('<text>') THEN
+         ...
+       ELSE
+         ...
+     END;
+   - WHILE @i < @max DO ... END;
+   - RETURN @var WITH status = 'complete';
+   - @var := <expr>;
+   - CALL PARALLEL
+       <fn1>(@arg) INTO @var1,
+       <fn2>(@arg) INTO @var2
+     END;
 
-            spl_lines.extend([
-                "    END;",
-                "  END;",
-            ])
+5. FORBIDDEN — never use these:
+   - No comments of any kind (no //, no --, no #)
+   - No BREAK keyword (use RETURN inside EVALUATE to exit loops)
+   - No STRING type (use TEXT)
+   - No CREATE FUNCTION inside a WORKFLOW body
 
-        elif has_decisions:
-            # Conditional pattern
-            for node in process_nodes:
-                var_name = _re.sub(r'\W+', '_', node["label"].lower())
-                func_name = _re.sub(r'\W+', '_', node["label"].lower()).strip('_')
-                # Avoid reserved keywords
-                if func_name in ['input', 'output', 'result', 'return', 'end', 'do', 'while', 'evaluate', 'when', 'then', 'else']:
-                    func_name = f"process_{func_name}"
-                spl_lines.append(f"  GENERATE {func_name}(@input) INTO @{var_name};")
+6. Loop exit pattern (ReAct): use RETURN inside EVALUATE, not BREAK:
+   WHILE @iteration < @max_iterations DO
+     GENERATE DecideAction(@query, @context) INTO @action;
+     EVALUATE @action
+       WHEN contains('answer') THEN
+         GENERATE AnswerQuestion(@query, @context) INTO @answer;
+         RETURN @answer WITH status = 'complete';
+       ELSE
+         CALL web_search(@query) INTO @results;
+         @context := @context + "\\n" + @results;
+         @iteration := @iteration + 1;
+     END;
+   END;
 
-            if decision_nodes:
-                decision = decision_nodes[0]
-                spl_lines.extend([
-                    f"  EVALUATE @{var_name}",
-                    f"    WHEN contains('condition') THEN",
-                    f"      @result := 'path_a';",
-                    f"    ELSE",
-                    f"      @result := 'path_b';",
-                    "  END;"
-                ])
+Map each Mermaid node/edge to the most appropriate SPL construct:
+- Decision diamonds {{...}} -> EVALUATE ... WHEN ... ELSE ... END
+- Loops (back-edges) -> WHILE ... DO ... END with RETURN for early exit
+- Process boxes [...] -> GENERATE or CALL
+- Parallel branches -> CALL PARALLEL ... END
 
-        elif has_parallel:
-            # Parallel pattern
-            spl_lines.append("  CALL PARALLEL")
-            for i, node in enumerate(process_nodes[:3]):  # Limit to 3 parallel
-                var_name = _re.sub(r'\W+', '_', node["label"].lower())
-                func_name = _re.sub(r'\W+', '_', node["label"].lower()).strip('_')
-                # Avoid reserved keywords
-                if func_name in ['input', 'output', 'result', 'return', 'end', 'do', 'while', 'evaluate', 'when', 'then', 'else']:
-                    func_name = f"process_{func_name}"
-                comma = "," if i < min(2, len(process_nodes) - 1) else ""
-                spl_lines.append(f"    {func_name}(@input) INTO @{var_name}{comma}")
-            spl_lines.append("  END")
+Output ONLY the raw SPL code - no markdown fences, no explanation.
+"""
 
-        else:
-            # Linear pattern
-            for node in process_nodes:
-                var_name = _re.sub(r'\W+', '_', node["label"].lower())
-                func_name = _re.sub(r'\W+', '_', node["label"].lower()).strip('_')
-                # Avoid reserved keywords
-                if func_name in ['input', 'output', 'result', 'return', 'end', 'do', 'while', 'evaluate', 'when', 'then', 'else']:
-                    func_name = f"process_{func_name}"
-                spl_lines.append(f"  GENERATE {func_name}(@input) INTO @{var_name};")
+    click.echo(f"Generating SPL from {mermaid_path.name} using {adapter}...", err=True)
+    try:
+        result = asyncio.run(llm.generate(prompt))
+        spl_code = result.content.strip()
+    except Exception as exc:
+        raise click.ClickException(f"LLM generation failed: {exc}") from exc
 
-        spl_lines.extend([
-            "  RETURN @result;",
-            "END;"
-        ])
+    # Strip accidental markdown fences
+    spl_code = _re.sub(r'^```[a-zA-Z]*\n?', '', spl_code, flags=_re.MULTILINE)
+    spl_code = _re.sub(r'\n?```$', '', spl_code, flags=_re.MULTILINE).strip()
 
-    else:  # function template
-        func_name = workflow_name
-        spl_lines.extend([
-            f"CREATE FUNCTION {func_name}(input TEXT) RETURNS TEXT AS $$",
-            f"Process the input through {workflow_name} workflow.",
-            "$$;"
-        ])
-
-    spl_code = "\n".join(spl_lines)
-
-    # Basic validation
+    # Validate
     if validate:
-        try:
-            # Simple syntax check
-            if not any(keyword in spl_code for keyword in ["WORKFLOW", "CREATE FUNCTION"]):
-                click.echo("Warning: Generated code may not be valid SPL", err=True)
-        except Exception as e:
-            click.echo(f"Validation warning: {e}", err=True)
+        valid, message = Text2SPL.validate_output(spl_code)
+        if not valid:
+            if output:
+                Path(output).parent.mkdir(parents=True, exist_ok=True)
+                Path(output).write_text(spl_code, encoding="utf-8")
+                click.echo(f"Written to {output} (with validation errors - review and fix)")
+            else:
+                click.echo(spl_code)
+            click.echo(f"Warning: {message}", err=True)
+            raise SystemExit(1)
 
     # Output
     if output:
+        Path(output).parent.mkdir(parents=True, exist_ok=True)
         Path(output).write_text(spl_code, encoding="utf-8")
-        click.echo(f"SPL code written to: {output}")
-
-        # Also generate .mmd file for reference
-        mmd_output = Path(output).with_suffix('.mmd')
-        mmd_output.write_text(mermaid_content, encoding="utf-8")
-        click.echo(f"Mermaid reference saved to: {mmd_output}")
+        click.echo(f"SPL written to: {output}")
     else:
         click.echo(spl_code)
+
 
 
 # ------------------------------------------------------------------ #
@@ -1973,6 +1923,158 @@ SEMANTIC ANALYSIS
         click.echo(f"Comparison report written to: {output_path}")
     else:
         click.echo(output_content)
+
+
+# ------------------------------------------------------------------ #
+# spl3 show                                                           #
+# ------------------------------------------------------------------ #
+
+@main.command("show")
+@click.option("--adapter", is_flag=False, flag_value="__list_all__", default=None,
+              help="List all adapters (no value) or specify adapter name")
+@click.option("--model", is_flag=True, default=False,
+              help="List available models (requires --adapter <name>)")
+@click.option("--tool", is_flag=False, flag_value="__list_all__", default=None,
+              metavar="NAME",
+              help="List all stdlib tools (no value) or show detail for a specific tool")
+def cmd_show(adapter, model, tool):
+    """List available adapters, models, and stdlib tools.
+
+    \b
+    Examples:
+      spl3 show --adapter                     # List all available adapters
+      spl3 show --adapter ollama --model      # List models for ollama adapter
+      spl3 show --adapter claude_cli --model  # List models for claude_cli adapter
+      spl3 show --tool                        # List all stdlib tools
+      spl3 show --tool web_search             # Show detail for a specific tool
+    """
+    import sys
+    from spl3.adapters import list_adapters, get_adapter
+
+    # Case 1: --adapter used as flag (list all adapters)
+    if adapter == "__list_all__":
+        if model:
+            raise click.ClickException("Cannot use --model when listing all adapters")
+
+        adapter_list = list_adapters()
+        if not adapter_list:
+            click.echo("No adapters available")
+            return
+
+        click.echo("Available adapters:")
+        for adapter_name in adapter_list:
+            click.echo(f"  {adapter_name}")
+
+        click.echo(f"\nTotal: {len(adapter_list)} adapter(s)")
+        click.echo("Use 'spl3 show --adapter <name> --model' to list models for a specific adapter")
+        return
+
+    # Case 2: --adapter has value and --model is used
+    if adapter and adapter != "__list_all__" and model:
+        adapter_list = list_adapters()
+        if adapter not in adapter_list:
+            available = ", ".join(sorted(adapter_list)) if adapter_list else "(none)"
+            raise click.ClickException(f"Unknown adapter '{adapter}'. Available: {available}")
+
+        try:
+            adapter_instance = get_adapter(adapter)
+            model_list = sorted(adapter_instance.list_models())
+
+            if not model_list:
+                click.echo(f"No models available for adapter '{adapter}'")
+                return
+
+            click.echo(f"Available models for '{adapter}':")
+            for model_name in model_list:
+                click.echo(f"  {model_name}")
+
+            click.echo(f"\nTotal: {len(model_list)} model(s)")
+
+        except Exception as e:
+            raise click.ClickException(f"Failed to list models for adapter '{adapter}': {e}")
+        return
+
+    # Case 3: Invalid combinations
+    if model and not adapter:
+        raise click.ClickException("--model flag requires --adapter <name> to specify which adapter to query")
+
+    if adapter and not model:
+        raise click.ClickException(f"Use --model to list models for adapter '{adapter}', or use --adapter alone to list all adapters")
+
+    # Case: --tool
+    if tool is not None:
+        from spl.tools import get_global_tools
+
+        # Category order and membership — matches stdlib.py section comments
+        _CATEGORIES = [
+            ("Type conversion",   ["to_int", "to_float", "to_text", "to_bool"]),
+            ("String",            ["upper", "lower", "trim", "ltrim", "rtrim", "length",
+                                   "len_val", "substr", "replace", "concat", "instr",
+                                   "lpad", "rpad", "split_part", "reverse"]),
+            ("Pattern matching",  ["like", "startswith", "endswith", "contains", "regexp_match"]),
+            ("Numeric",           ["abs_val", "round_val", "ceil_val", "floor_val",
+                                   "mod_val", "power_val", "sqrt_val", "sign_val", "clamp"]),
+            ("Conditional",       ["coalesce", "nullif", "iif"]),
+            ("Null / empty",      ["isnull", "nvl", "isblank"]),
+            ("Text aggregates",   ["word_count", "char_count", "line_count"]),
+            ("JSON",              ["json_get", "json_set", "json_keys", "json_pretty",
+                                   "json_length"]),
+            ("Date / time",       ["now_iso", "date_format_val", "date_diff_days"]),
+            ("Hashing",           ["md5_hash", "sha256_hash"]),
+            ("List / array",      ["list_get", "list_length", "list_join", "list_contains",
+                                   "trim_turns"]),
+            ("File I/O",          ["write_file", "read_file", "file_exists", "make_dir",
+                                   "path_join"]),
+            ("Agentic / Network", ["web_search", "http_get", "run_python"]),
+        ]
+
+        all_tools = get_global_tools()
+
+        if tool == "__list_all__":
+            # Assign each tool to its category; uncategorised tools go last
+            categorised = {name for names in _CATEGORIES for name in names[1]}
+            uncategorised = sorted(k for k in all_tools if k not in categorised)
+
+            total = 0
+            for cat_name, cat_tools in _CATEGORIES:
+                present = [t for t in cat_tools if t in all_tools]
+                if not present:
+                    continue
+                click.echo(f"\n{cat_name}:")
+                for name in present:
+                    fn = all_tools[name]
+                    doc = (fn.__doc__ or "").strip().splitlines()[0]
+                    click.echo(f"  {name:<22}  {doc}")
+                    total += 1
+
+            if uncategorised:
+                click.echo("\nOther:")
+                for name in uncategorised:
+                    fn = all_tools[name]
+                    doc = (fn.__doc__ or "").strip().splitlines()[0]
+                    click.echo(f"  {name:<22}  {doc}")
+                    total += 1
+
+            click.echo(f"\nTotal: {total} tool(s)  — use 'spl3 show --tool <name>' for detail")
+            return
+
+        # --tool <name>: show full docstring
+        if tool not in all_tools:
+            available = ", ".join(sorted(all_tools))
+            raise click.ClickException(
+                f"Unknown tool '{tool}'.\nAvailable: {available}"
+            )
+        fn = all_tools[tool]
+        click.echo(f"Tool: {tool}")
+        click.echo(f"{'─' * (len(tool) + 6)}")
+        click.echo(fn.__doc__ or "(no docstring)")
+        return
+
+    # Case 4: No options provided
+    raise click.ClickException(
+        "Use --adapter to list adapters, --adapter <name> --model to list models, "
+        "or --tool to list stdlib tools"
+    )
 
 
 # ------------------------------------------------------------------ #

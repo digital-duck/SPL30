@@ -153,11 +153,17 @@ def splc():
     ),
 )
 @click.option(
-    "--model",
-    default="claude-sonnet-4-6",
-    type=click.Choice(SUPPORTED_MODELS, case_sensitive=False),
+    "--adapter",
+    default="claude_cli",
     show_default=True,
-    help="Claude model to use for compilation.",
+    metavar="NAME",
+    help="LLM adapter to use for --llm compilation (default: claude_cli).",
+)
+@click.option(
+    "--model",
+    default=None,
+    metavar="MODEL",
+    help="Model override for the adapter (default: adapter's own default).",
 )
 @click.option(
     "--rag/--no-rag",
@@ -227,7 +233,8 @@ def cmd_compile(
     spl_path:   Path,
     lang:       str,
     out_dir:    Path | None,
-    model:      str,
+    adapter:    str,
+    model:      str | None,
     use_rag:    bool,
     rag_k:      int,
     references: tuple[str, ...],
@@ -378,11 +385,11 @@ def cmd_compile(
             click.echo(f"\n[Prompt length: {len(prompt)} chars / ~{len(prompt)//4} tokens]")
             return
 
-        # ── Call LLM (claude_cli adapter) ─────────────────────────────────────────
+        # ── Call LLM ──────────────────────────────────────────────────────────────
         if verbose:
-            click.echo(f"Calling {model} ...")
+            click.echo(f"Calling {adapter} / {model or '(default)'} ...")
 
-        impl_code, readme_text = _compile(prompt, model=model, verbose=verbose)
+        impl_code, readme_text = _compile(prompt, adapter=adapter, model=model, verbose=verbose)
 
     # ── Write output files ────────────────────────────────────────────────────
     impl_path.write_text(impl_code, encoding="utf-8")
@@ -396,6 +403,7 @@ def cmd_compile(
         manifest_path = manifest_path,
         spl_path      = spl_path,
         lang          = lang,
+        adapter       = adapter,
         model         = model,
         references    = list(references),
         use_rag       = use_rag,
@@ -611,24 +619,23 @@ Source file: {spl_filename}\
 
 # ── LLM caller ───────────────────────────────────────────────────────────────
 
-def _compile(prompt: str, *, model: str, verbose: bool) -> tuple[str, str]:
-    """Call the claude_cli adapter and return (implementation, readme)."""
+def _compile(prompt: str, *, adapter: str, model: str | None, verbose: bool) -> tuple[str, str]:
+    """Call the specified adapter and return (implementation, readme)."""
+    import asyncio
     try:
-        from spl3.adapters.claude_cli import ClaudeCLIAdapter  # type: ignore
+        from spl.adapters import get_adapter
     except ImportError:
-        click.echo(
-            "ERROR: claude_cli adapter not found. "
-            "Ensure SPL20 is on PYTHONPATH or spl package is installed.",
-            err=True,
-        )
+        click.echo("ERROR: spl.adapters not found. Ensure SPL.py is installed.", err=True)
         sys.exit(1)
 
-    import asyncio
-
-    adapter = ClaudeCLIAdapter(default_model=model)
+    try:
+        llm = get_adapter(adapter, **{"model": model} if model else {})
+    except ValueError as exc:
+        click.echo(f"ERROR: {exc}", err=True)
+        sys.exit(1)
 
     async def _run() -> str:
-        result = await adapter.generate(prompt)
+        result = await llm.generate(prompt)
         return result.content
 
     raw = asyncio.run(_run())
@@ -658,7 +665,8 @@ def _write_manifest(
     manifest_path: Path,
     spl_path:      Path,
     lang:          str,
-    model:         str,
+    adapter:       str,
+    model:         str | None,
     references:    list[str],
     use_rag:       bool,
     rag_k:         int,
@@ -678,8 +686,8 @@ def _write_manifest(
             "output_file": str(impl_path.resolve()),
         },
         "compilation": {
+            "adapter":     adapter,
             "model":       model,
-            "adapter":     "claude_cli",
             "references":  references,
             "rag_enabled": use_rag,
             "rag_k":       rag_k if use_rag else 0,
@@ -909,6 +917,43 @@ def cmd_describe(impl_path: Path, lang_label: str | None, adapter: str, model: s
     click.echo("Reverse pipeline:")
     click.echo(f"  spl3 text2spl --description {spec_path.name} --mode workflow -o output.spl")
     click.echo(f"  spl3 splc compile output.spl --lang python/pocketflow")
+
+
+# ── Show command ──────────────────────────────────────────────────────────────
+
+@splc.command(name="show", context_settings={"help_option_names": ["-h", "--help"]})
+@click.option("--target", is_flag=True, default=False,
+              help="List all available target runtimes")
+def show_cmd(target):
+    """Show available compiler targets and options.
+
+    \b
+    Examples:
+      spl3 splc show --target    # List all available target runtimes
+    """
+    if target:
+        click.echo("Available target runtimes:")
+        click.echo()
+
+        for lang_key, lang_info in SUPPORTED_LANGS.items():
+            status = "✓" if lang_key in DETERMINISTIC_LANGS else "🤖"
+            click.echo(f"  {status} {lang_key}")
+            click.echo(f"      {lang_info['label']}")
+            if lang_info['framework']:
+                click.echo(f"      Framework: {lang_info['framework']}")
+            click.echo()
+
+        click.echo(f"Total: {len(SUPPORTED_LANGS)} target runtime(s)")
+        click.echo()
+        click.echo("Legend:")
+        click.echo("  ✓  Deterministic transpiler (rule-based, no LLM needed)")
+        click.echo("  🤖 LLM-powered compilation (uses Claude for code generation)")
+        click.echo()
+        click.echo("Use: spl3 splc compile <file.spl> --lang <target>")
+        return
+
+    # No flags provided
+    raise click.ClickException("Use --target to list available target runtimes")
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
